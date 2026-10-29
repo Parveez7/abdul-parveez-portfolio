@@ -33,26 +33,38 @@ const PARAGRAPHS = [
 ]
 
 /**
- * Interpolates word colour from pale grey (#CFCFCB -> 207, 207, 203)
- * to full ink (#121212 -> 18, 18, 18) or muted grey (#72706B -> 114, 112, 107).
+ * Interpolates word colour:
+ * 1) Unread: pale grey (#CFCFCB -> 207, 207, 203)
+ * 2) Active reading cursor: turns vibrant RED (--accent #E8283C -> 232, 40, 60)
+ * 3) Settled / read: dark ink (#121212 -> 18, 18, 18) or muted grey (#72706B -> 114, 112, 107).
  */
 function computeWordColor(fill, isMutedWord = false) {
   if (fill <= 0.001) return '#CFCFCB'
-  const startR = 207
-  const startG = 207
-  const startB = 203
+  if (fill >= 0.999) return isMutedWord ? '#72706B' : '#121212'
 
+  // Stage 1: Unread Grey -> Vibrant Red (0.0 -> 0.45)
+  if (fill < 0.45) {
+    const t = fill / 0.45
+    const r = Math.round(207 + (232 - 207) * t)
+    const g = Math.round(207 + (40 - 207) * t)
+    const b = Math.round(203 + (60 - 203) * t)
+    return `rgb(${r},${g},${b})`
+  }
+
+  // Peak Red Highlight (0.45 -> 0.55)
+  if (fill <= 0.55) {
+    return '#E8283C'
+  }
+
+  // Stage 2: Vibrant Red -> Settled Ink/Muted (0.55 -> 1.0)
+  const t = (fill - 0.55) / 0.45
   const endR = isMutedWord ? 114 : 18
   const endG = isMutedWord ? 112 : 18
   const endB = isMutedWord ? 107 : 18
 
-  if (fill >= 0.999) {
-    return isMutedWord ? '#72706B' : '#121212'
-  }
-
-  const r = Math.round(startR + (endR - startR) * fill)
-  const g = Math.round(startG + (endG - startG) * fill)
-  const b = Math.round(startB + (endB - startB) * fill)
+  const r = Math.round(232 + (endR - 232) * t)
+  const g = Math.round(40 + (endG - 40) * t)
+  const b = Math.round(60 + (endB - 60) * t)
   return `rgb(${r},${g},${b})`
 }
 
@@ -101,7 +113,7 @@ export default function About() {
       const totalWords = words.length
       if (totalWords === 0) return
 
-      const softEdgeWidth = 3.0
+      const softEdgeWidth = 3.6
       const cursor = textProg * (totalWords + softEdgeWidth)
 
       for (let i = 0; i < totalWords; i++) {

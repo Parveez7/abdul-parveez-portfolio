@@ -23,3 +23,4 @@ export const FILLER_DATA = {
   screenReaderSummary:
     'Jack of all trades, master of: Artificial Intelligence, Data Analysis, Web Development, Overthinking Ideas, Making It Work.',
 }
+

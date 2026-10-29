@@ -21,7 +21,6 @@ export default function Filler() {
   const cueRef = useRef(null)
 
   const [activePhraseIndex, setActivePhraseIndex] = useState(0)
-  const [isPulse, setIsPulse] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   // Pre-split phrases into characters for performant DOM-level transformation
@@ -125,7 +124,7 @@ export default function Filler() {
     triggers.push(entranceSt)
 
     // -------------------------------------------------------------------------
-    // 2. Continuous Scrubbed Pinning (~450vh total, ~90vh per phrase)
+    // 2. Continuous Scrubbed Pinning (~180vh total, ~36vh per phrase for quick response)
     // -------------------------------------------------------------------------
     const phraseCount = FILLER_DATA.phrases.length
     let lastActiveIdx = -1
@@ -133,16 +132,10 @@ export default function Filler() {
     const pinnedSt = ScrollTrigger.create({
       trigger: sectionEl,
       start: 'top top',
-      end: '+=450%', // 450vh of scroll
+      end: '+=180%', // Compact ~180vh of scroll for snappy, prompt phrase changes
       pin: true,
       pinSpacing: true,
-      scrub: 0.6,
-      // Snapping: 5 phrases centered at 0.10, 0.30, 0.50, 0.70, 0.90
-      snap: {
-        snapTo: [0.10, 0.30, 0.50, 0.70, 0.90],
-        duration: { min: 0.25, max: 0.6 },
-        ease: 'power2.inOut',
-      },
+      scrub: 0.35, // Direct, fluid follow with zero dragging
       onEnter: () => {
         setActiveSection('filler')
         setActiveSectionIndex('02')
@@ -159,7 +152,7 @@ export default function Filler() {
         setActiveTheme('light')
       },
       onUpdate: (self) => {
-        const p = self.progress // 0..1 across the 450vh scroll
+        const p = self.progress // 0..1 across the 180vh scroll
         updateProgress('filler', p)
 
         // Ensure theme & navbar stay in dark mode while scrolling in Filler
@@ -179,23 +172,12 @@ export default function Filler() {
           setActivePhraseIndex(currentIdx)
         }
 
-        // ScrollCue visibility: visible only during phrase 0, smooth fade out by p = 0.12
+        // ScrollCue visibility: visible only during phrase 0, smooth fade out by p = 0.10
         if (cueRef.current) {
-          const cueOpacity = Math.max(0, 1 - p / 0.12)
+          const cueOpacity = Math.max(0, 1 - p / 0.10)
           cueRef.current.style.opacity = String(cueOpacity)
           cueRef.current.style.pointerEvents = cueOpacity > 0.1 ? 'auto' : 'none'
         }
-
-        // Glow pulse detection around boundaries (0.20, 0.40, 0.60, 0.80)
-        let nearSwap = false
-        const boundaries = [0.20, 0.40, 0.60, 0.80]
-        for (let b = 0; b < boundaries.length; b++) {
-          if (Math.abs(p - boundaries[b]) < 0.032) {
-            nearSwap = true
-            break
-          }
-        }
-        setIsPulse(nearSwap)
 
         // ---------------------------------------------------------------------
         // Continuous, glitch-free phrase swapping with character stagger
@@ -206,17 +188,11 @@ export default function Filler() {
           const holder = phraseHolders[i]
           const chars = holder.querySelectorAll('.filler-char')
 
-          // Transition timing windows per phrase
-          // Phrase 0: Hold 0.00..0.15, Exit 0.15..0.22
-          // Phrase 1: Enter 0.18..0.25, Hold 0.25..0.35, Exit 0.35..0.42
-          // Phrase 2: Enter 0.38..0.45, Hold 0.45..0.55, Exit 0.55..0.62
-          // Phrase 3: Enter 0.58..0.65, Hold 0.65..0.75, Exit 0.75..0.82
-          // Phrase 4: Enter 0.78..0.85, Hold 0.85..1.00
-
-          let enterStart = i === 0 ? -1 : (i - 1) * 0.20 + 0.18
-          let enterEnd = i === 0 ? -1 : i * 0.20 + 0.05
-          let exitStart = i === phraseCount - 1 ? 2 : i * 0.20 + 0.15
-          let exitEnd = i === phraseCount - 1 ? 2 : i * 0.20 + 0.22
+          // Fast, snappy timing windows per phrase (~36vh each)
+          const enterStart = i === 0 ? -1 : (i - 1) * 0.20 + 0.13
+          const enterEnd = i === 0 ? -1 : (i - 1) * 0.20 + 0.20
+          const exitStart = i === phraseCount - 1 ? 2 : i * 0.20 + 0.12
+          const exitEnd = i === phraseCount - 1 ? 2 : i * 0.20 + 0.18
 
           if (i === 0) {
             if (p <= exitStart) {
@@ -373,13 +349,7 @@ export default function Filler() {
                     data-index={pIdx}
                     className="filler-section__slot-holder"
                   >
-                    <span
-                      className={`filler-section__phrase ${
-                        isPulse && activePhraseIndex === pIdx
-                          ? 'filler-section__phrase--pulse'
-                          : ''
-                      }`}
-                    >
+                    <span className="filler-section__phrase">
                       {phraseCharacters[pIdx].map((item) => (
                         <span
                           key={item.id}
@@ -439,3 +409,4 @@ export default function Filler() {
     </section>
   )
 }
+
