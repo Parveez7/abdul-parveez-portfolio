@@ -34,3 +34,4 @@ export const SITE = {
     { label: 'Email', href: 'mailto:contact@abdulparvez.in' },
   ],
 }
+

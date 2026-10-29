@@ -13,7 +13,7 @@
 
 html {
   font-size: 16px;
-  background-color: var(--bg-dark);
+  background-color: var(--stage-dynamic-bg, var(--bg-dark));
   color: var(--text-light);
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
@@ -78,10 +78,11 @@ html.lenis body {
 
 body {
   min-height: 100svh;
-  background-color: var(--bg-dark);
+  background-color: var(--stage-dynamic-bg, var(--bg-dark));
   color: var(--text-light);
   overflow-x: hidden;
   line-height: 1.5;
+  transition: background-color 0.15s linear;
 }
 
 #root {
@@ -129,10 +130,11 @@ button:focus-visible {
 }
 
 /* -------------------------------------------------------------------------
-   Section Shell with 100svh
+   Section Shell with 100svh (sits above fixed particle canvas)
    ------------------------------------------------------------------------- */
 .section-shell {
   position: relative;
+  z-index: var(--z-content);
   width: 100%;
   min-height: 100svh;
   display: flex;
@@ -141,16 +143,15 @@ button:focus-visible {
   align-items: center;
   padding: var(--space-xl) var(--space-md);
   box-sizing: border-box;
-  transition: background-color 0.4s var(--ease-out), color 0.4s var(--ease-out);
+  background-color: transparent;
+  transition: color 0.35s var(--ease-out);
 }
 
 .section-shell[data-theme='light'] {
-  background-color: var(--bg-paper);
   color: var(--ink);
 }
 
 .section-shell[data-theme='dark'] {
-  background-color: var(--bg-dark);
   color: var(--text-light);
 }
 

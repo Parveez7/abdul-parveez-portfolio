@@ -1,0 +1,132 @@
+.particle-debug {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 280px;
+  background: rgba(18, 18, 22, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 14px;
+  color: #F5F2EE;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  z-index: 90;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.particle-debug__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.particle-debug__title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(245, 242, 238, 0.7);
+}
+
+.particle-debug__badge {
+  background: rgba(232, 40, 60, 0.2);
+  border: 1px solid var(--accent);
+  color: #FF6B7B;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.particle-debug__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(245, 242, 238, 0.75);
+}
+
+.particle-debug__stats strong {
+  color: #FFFFFF;
+}
+
+.particle-debug__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.particle-debug__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.particle-debug__label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(245, 242, 238, 0.8);
+}
+
+.particle-debug__val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.particle-debug__buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.particle-debug__btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #F5F2EE;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.particle-debug__btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.particle-debug__btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+
+.particle-debug__slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.particle-debug__action {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.particle-debug__action:hover {
+  background: rgba(232, 40, 60, 0.35);
+  border-color: var(--accent);
+}

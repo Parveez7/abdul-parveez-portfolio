@@ -47,3 +47,4 @@ export function useSectionScrollTrigger(sectionRef, { id, theme = 'dark', index 
     }
   }, [id, theme, index, sectionRef, setActiveTheme, setActiveSection, setActiveSectionIndex, updateProgress])
 }
+
