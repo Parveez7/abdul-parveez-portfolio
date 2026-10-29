@@ -47,38 +47,40 @@ export function computeSceneLayoutRect(sceneName, vw, vh, imgWidth, imgHeight) {
 
   if (sceneName === 'hero') {
     if (isMobile) {
-      const targetW = Math.min(vw * 1.16, vh * 0.62 * imgAspect)
+      const targetW = Math.min(vw * 1.15, vh * 0.62 * imgAspect)
       const targetH = targetW / imgAspect
       const x = (vw - targetW) * 0.5
-      const y = (vh - targetH) * 0.50
+      const y = (vh - targetH) * 0.48
       return { x, y, width: targetW, height: targetH }
     }
 
-    const maxWByViewport = isTablet ? vw * 0.82 : vw * 0.92
-    const desiredH = vh * 0.94
-    const targetW = Math.min(desiredH * imgAspect, maxWByViewport)
+    // Desktop: Ensure entire head, shoulders, and arms sit fully within 100svh
+    // (no bottom 1-inch clipping when scrolling back up)
+    const desiredH = vh * 0.90
+    const targetW = Math.min(desiredH * imgAspect, isTablet ? vw * 0.82 : vw * 0.90)
     const targetH = targetW / imgAspect
     const x = (vw - targetW) * 0.5
-    const y = vh - targetH * 0.98
+    // Anchor so bottom sits at vh * 0.95 (above scroll cue, fully visible)
+    const y = vh * 0.95 - targetH
     return { x, y, width: targetW, height: targetH }
   }
 
   // About Poses ('pose1', 'pose2', 'pose3'):
-  // Sit in the right half of the viewport on desktop (matching about-section-inspiration.png)
+  // Shifted slightly further right (centerX ~ 73-74% on desktop)
+  // to eliminate awkward white space and balance the wider editorial text column.
   if (vw < 900) {
-    // Mobile / Narrow Tablet: Figure sits centered/slightly right behind text at reduced opacity
-    const size = Math.min(vw * 0.88, vh * 0.72)
+    const size = Math.min(vw * 0.86, vh * 0.70)
     return {
-      x: (vw - size) * 0.58,
+      x: (vw - size) * 0.62,
       y: (vh - size) * 0.52,
       width: size,
       height: size,
     }
   }
 
-  // Desktop (>= 900px): Right half of the screen
-  const size = Math.min(vw * 0.48, vh * 0.88)
-  const centerX = vw * 0.68
+  // Desktop (>= 900px): Right half, shifted right per user request
+  const size = Math.min(vw * 0.44, vh * 0.86)
+  const centerX = vw * 0.735
   const centerY = vh * 0.53
   return {
     x: centerX - size * 0.5,
@@ -162,12 +164,14 @@ export function buildTargets(image, options = {}) {
   for (let py = 2; py < sampleH - 2; py++) {
     const v = py / sampleH
 
+    // For hero portrait: gentle soft fade at bottom (v > 0.88 -> 0.98), floor at 0.38
+    // so the bottom 1 inch of the avatar stays visible upon scrolling back up
     let bottomFade = 1.0
     if (isHero) {
-      if (v > 0.96) continue
-      if (v > 0.72) {
-        const tFade = (v - 0.72) / 0.24
-        bottomFade = Math.max(0, 1 - Math.pow(tFade, 1.6))
+      if (v > 0.98) continue
+      if (v > 0.88) {
+        const tFade = (v - 0.88) / 0.10
+        bottomFade = Math.max(0.38, 1 - Math.pow(tFade, 1.4) * 0.62)
       }
     }
 
@@ -242,10 +246,11 @@ export function buildTargets(image, options = {}) {
             brightness = 0.32 + nearBg * 0.42 + normEdge * 0.35
           }
         } else {
+          // Torso & sweater: keep full clarity down through the waist and arms
           const foldEdge = Math.pow(normEdge, 0.85) * 1.55
           const fabricTone = warmth > 12 ? Math.pow(Math.max(0, (lum - 85) / 170), 1.4) * 0.48 : 0.12
           weight = (nearBg * 1.1 + foldEdge + fabricTone) * bottomFade
-          brightness = Math.min(1, (0.28 + normEdge * 0.48 + normLum * 0.32) * bottomFade)
+          brightness = Math.min(1, Math.max(0.32, (0.32 + normEdge * 0.48 + normLum * 0.32) * bottomFade))
         }
       } else {
         // About poses (pose1, pose2, pose3):
@@ -262,7 +267,7 @@ export function buildTargets(image, options = {}) {
         candU[candCount] = u
         candV[candCount] = v
         candWeight[candCount] = weight
-        candBright[candCount] = Math.max(0.15, Math.min(1, brightness))
+        candBright[candCount] = Math.max(0.18, Math.min(1, brightness))
         candCount++
       }
     }
@@ -330,7 +335,6 @@ export function buildTargets(image, options = {}) {
   for (let i = figureCount; i < count; i++) {
     let cIdx = pickCandidateIndex(rng())
     if (!isHero) {
-      // Bias dispersion origins toward the right side of the figure (u > 0.44)
       for (let attempt = 0; attempt < 3; attempt++) {
         if (candU[cIdx] > 0.44) break
         cIdx = pickCandidateIndex(rng())
@@ -347,9 +351,8 @@ export function buildTargets(image, options = {}) {
       const dist = (8 + Math.pow(rng(), 2) * 55) * (viewportWidth / 1440)
       outX[i] = baseX + Math.cos(angle) * dist
       outY[i] = baseY + Math.sin(angle) * dist
-      outBrightness[i] = 0.16 + rng() * 0.28
+      outBrightness[i] = 0.22 + rng() * 0.28
     } else {
-      // About poses: Dissolving speck cloud shedding off the right edge of the figure
       const spreadRight = Math.pow(rng(), 1.35) * rect.width * 0.56 + 6
       const spreadVert = (rng() - 0.48) * rect.height * 0.34
       outX[i] = baseX + spreadRight

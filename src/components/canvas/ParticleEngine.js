@@ -481,11 +481,14 @@ export class ParticleEngine {
    */
   setMorph(fromName, toName, progress) {
     if (this.isDestroyed) return
+    const t = Math.max(0, Math.min(1, Number(progress) || 0))
+    if (this.lastMorphT !== undefined && Math.abs(t - this.lastMorphT) < 0.002 && t > 0.001 && t < 0.999) return
+    this.lastMorphT = t
+
     const fromTargets = this._buildSceneTargetsSync(fromName)
     const toTargets = this._buildSceneTargetsSync(toName)
     if (!fromTargets || !toTargets) return
 
-    const t = Math.max(0, Math.min(1, Number(progress) || 0))
     this.currentScene = t >= 0.5 ? toName : fromName
 
     const fx = fromTargets.x

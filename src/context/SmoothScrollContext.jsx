@@ -13,7 +13,8 @@ export function SmoothScrollProvider({ children }) {
   const [activeTheme, setActiveTheme] = useState('dark') // 'dark' | 'light'
   const [activeSection, setActiveSection] = useState('hero') // 'hero' | 'about' | 'filler' | ...
   const [activeSectionIndex, setActiveSectionIndex] = useState('01') // '01'..'05'
-  const [isScrolled, setIsScrolled] = useState(false) // true after first scroll (> 50px)
+  const [isScrolled, setIsScrolled] = useState(false)
+  const isScrolledRef = useRef(false)
 
   // Lightweight progress store (sectionId -> 0..1), avoiding React re-renders every frame
   const progressMap = useRef(new Map())
@@ -26,7 +27,6 @@ export function SmoothScrollProvider({ children }) {
     }
     listenersMap.current.get(sectionId).add(callback)
 
-    // Immediate callback with current value if exists
     if (progressMap.current.has(sectionId)) {
       callback(progressMap.current.get(sectionId))
     }
@@ -36,7 +36,6 @@ export function SmoothScrollProvider({ children }) {
     }
   }, [])
 
-  // Update progress for a section and notify subscribers
   const updateProgress = useCallback((sectionId, progress) => {
     progressMap.current.set(sectionId, progress)
     const listeners = listenersMap.current.get(sectionId)
@@ -45,7 +44,6 @@ export function SmoothScrollProvider({ children }) {
     }
   }, [])
 
-  // Smooth scroll method using Lenis with expo-out ease
   const scrollTo = useCallback((target, customOptions = {}) => {
     if (!target) return
 
@@ -57,15 +55,13 @@ export function SmoothScrollProvider({ children }) {
       return
     }
 
-    // Expo-out easing function: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
     lenisRef.current.scrollTo(target, {
-      duration: 1.4,
+      duration: 1.2,
       easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
       ...customOptions,
     })
   }, [])
 
-  // Loader control: stop and resume Lenis
   const stopScroll = useCallback(() => {
     lenisRef.current?.stop()
   }, [])
@@ -75,56 +71,54 @@ export function SmoothScrollProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    // 1. Check for reduced motion preference
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     isReducedMotion.current = mediaQuery.matches
 
-    // 2. Manual scroll restoration - always start at top on reload
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual'
     }
     window.scrollTo(0, 0)
 
-    // 3. Initialize single Lenis instance if not reduced motion
     let lenisInstance = null
     let tickerHandler = null
 
     if (!isReducedMotion.current) {
+      // Use clean lerp alone for responsive trackpad and mouse wheel scrolling without stutter
       lenisInstance = new Lenis({
-        lerp: 0.09,
-        duration: 1.15,
-        easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+        lerp: 0.1,
         smoothWheel: true,
-        syncTouch: false, // Keep native touch feel on mobile devices
+        syncTouch: false,
+        wheelMultiplier: 1.0,
+        touchMultiplier: 1.0,
       })
       lenisRef.current = lenisInstance
 
-      // Sync Lenis scroll with GSAP ScrollTrigger
       const handleLenisScroll = (e) => {
         ScrollTrigger.update()
-        if (e.scroll > 50 && !isScrolled) {
-          setIsScrolled(true)
-        } else if (e.scroll <= 50 && isScrolled) {
-          setIsScrolled(false)
+        const scrolled = e.scroll > 50
+        if (scrolled !== isScrolledRef.current) {
+          isScrolledRef.current = scrolled
+          setIsScrolled(scrolled)
         }
       }
       lenisInstance.on('scroll', handleLenisScroll)
 
-      // GSAP Ticker synchronization
       tickerHandler = (time) => {
         lenisInstance.raf(time * 1000)
       }
       gsap.ticker.add(tickerHandler)
       gsap.ticker.lagSmoothing(0)
     } else {
-      // For reduced motion, just track native window scroll for isScrolled
       const handleNativeScroll = () => {
-        setIsScrolled(window.scrollY > 50)
+        const scrolled = window.scrollY > 50
+        if (scrolled !== isScrolledRef.current) {
+          isScrolledRef.current = scrolled
+          setIsScrolled(scrolled)
+        }
       }
       window.addEventListener('scroll', handleNativeScroll, { passive: true })
     }
 
-    // 4. Wait for document.fonts.ready before the first ScrollTrigger.refresh()
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => {
         ScrollTrigger.refresh()
@@ -133,7 +127,6 @@ export function SmoothScrollProvider({ children }) {
       setTimeout(() => ScrollTrigger.refresh(), 300)
     }
 
-    // 5. Debounced ResizeObserver to refresh ScrollTrigger cleanly on dimension change
     let resizeTimer = null
     const debouncedRefresh = () => {
       clearTimeout(resizeTimer)
@@ -146,7 +139,6 @@ export function SmoothScrollProvider({ children }) {
     resizeObserver.observe(document.body)
     window.addEventListener('resize', debouncedRefresh)
 
-    // Cleanup
     return () => {
       clearTimeout(resizeTimer)
       resizeObserver.disconnect()
@@ -160,7 +152,7 @@ export function SmoothScrollProvider({ children }) {
         lenisRef.current = null
       }
     }
-  }, [isScrolled])
+  }, []) // Empty dependency array: Lenis is initialized once and never destroyed on scroll!
 
   return (
     <SmoothScrollContext.Provider
@@ -192,4 +184,3 @@ export function useSmoothScroll() {
   }
   return context
 }
-

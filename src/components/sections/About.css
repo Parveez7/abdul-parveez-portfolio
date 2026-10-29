@@ -13,19 +13,20 @@
 .about-section__container {
   position: relative;
   width: 100%;
-  max-width: 1680px;
+  max-width: 1760px;
   height: 100%;
   margin: 0 auto;
-  padding: calc(var(--nav-height) + 1.25vh) clamp(1.5rem, 3vw, 4rem) clamp(3.5rem, 6vh, 5.5rem)
-    clamp(4.75rem, 7.5vw, 8.75rem);
+  padding: calc(var(--nav-height) + 1.5vh) clamp(1.5rem, 3vw, 4rem) clamp(3.5rem, 6vh, 5.5rem)
+    clamp(4.25rem, 6.5vw, 8rem);
   display: grid;
-  grid-template-columns: minmax(300px, 46%) 1fr;
+  grid-template-columns: minmax(360px, 52%) 1fr;
   align-items: center;
   box-sizing: border-box;
 }
 
 /* -------------------------------------------------------------------------
    Left Column: Eyebrow, Serif Italic Headline, and Three Paragraphs
+   Wider proportion (52% width, max-width 52ch) eliminating empty white gap
    ------------------------------------------------------------------------- */
 .about-section__left {
   grid-column: 1;
@@ -41,8 +42,8 @@
 .about-section__eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: clamp(0.85rem, 2vh, 1.75rem);
+  gap: 22px;
+  margin-bottom: clamp(0.9rem, 2vh, 1.85rem);
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
@@ -62,20 +63,20 @@
 
 .about-section__eyebrow-rule {
   display: block;
-  width: clamp(56px, 6.5vw, 108px);
+  width: clamp(70px, 8vw, 130px);
   height: 1px;
   background-color: rgba(18, 18, 18, 0.22);
 }
 
-/* Headline: Italic Serif, 4 lines, tight 0.95 leading */
+/* Headline: Italic Serif, 4 lines, tight 0.95 leading, gracefully stretched */
 .about-section__headline {
   font-family: var(--font-serif-italic);
   font-style: italic;
   font-weight: 400;
-  font-size: clamp(2.4rem, min(5.6vw, 8.6svh), 6.25rem); /* ~48px -> 100px, fits 100svh */
-  line-height: 0.95;
+  font-size: clamp(2.6rem, min(6.0vw, 9.2svh), 6.5rem);
+  line-height: 0.96;
   letter-spacing: -0.02em;
-  margin: 0 0 clamp(1.1rem, 2.4vh, 2rem) 0;
+  margin: 0 0 clamp(1.2rem, 2.5vh, 2.2rem) 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -87,20 +88,20 @@
   white-space: nowrap;
 }
 
-/* Three Short Paragraphs */
+/* Three Short Paragraphs: Stretched to 52ch for an elegant, balanced editorial layout */
 .about-section__paragraphs {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.75rem, 1.65vh, 1.35rem);
-  max-width: 36ch;
+  gap: clamp(0.85rem, 1.8vh, 1.45rem);
+  max-width: 52ch;
   will-change: transform, opacity;
 }
 
 .about-section__paragraph {
   font-family: var(--font-sans);
   font-weight: 400;
-  font-size: clamp(0.875rem, min(1.08vw, 1.85svh), 1.125rem); /* ~16-18px */
-  line-height: 1.5;
+  font-size: clamp(0.95rem, min(1.12vw, 1.9svh), 1.16rem);
+  line-height: 1.58;
   letter-spacing: -0.005em;
   margin: 0;
 }
@@ -108,11 +109,11 @@
 /* Word spans for scroll-linked sequential colour progression */
 .about-word {
   color: #CFCFCB;
-  transition: color 0.06s linear;
+  transition: color 0.05s linear;
 }
 
 /* -------------------------------------------------------------------------
-   Right Column: Visual Stage for the Particle Figure
+   Right Column: Visual Stage for the Particle Figure (Shifted Right)
    ------------------------------------------------------------------------- */
 .about-section__right {
   grid-column: 2;
@@ -127,14 +128,13 @@
 .about-section__footer {
   position: absolute;
   bottom: clamp(1.25rem, 3.2vh, 2.75rem);
-  left: clamp(4.75rem, 7.5vw, 8.75rem);
+  left: clamp(4.25rem, 6.5vw, 8rem);
   z-index: 2;
   will-change: transform, opacity;
 }
 
 /* -------------------------------------------------------------------------
    Responsive Mobile & Tablet (< 900px)
-   Figure sits behind text at reduced opacity (~0.35); text stays legible
    ------------------------------------------------------------------------- */
 @media (max-width: 899px) {
   .about-section__container {
@@ -143,8 +143,7 @@
   }
 
   .about-section__left {
-    max-width: 540px;
-    /* Subtle paper halo behind text to guarantee crisp legibility over particles */
+    max-width: 580px;
     text-shadow: 0 0 18px rgba(250, 250, 248, 0.95), 0 0 6px rgba(250, 250, 248, 0.9);
   }
 
@@ -153,7 +152,7 @@
   }
 
   .about-section__paragraphs {
-    max-width: 38ch;
+    max-width: 100%;
   }
 
   .about-section__right {

@@ -82,13 +82,16 @@
     opacity: 0;
     transform: translateY(-2px);
   }
+
   30% {
     opacity: 1;
   }
+
   80% {
     opacity: 0;
     transform: translateY(6px);
   }
+
   100% {
     opacity: 0;
     transform: translateY(6px);

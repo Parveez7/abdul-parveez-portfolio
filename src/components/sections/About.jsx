@@ -64,7 +64,6 @@ export default function About() {
   const paragraphsRef = useRef(null)
   const footerCueRef = useRef(null)
 
-  // Flat list of word span DOM elements & metadata for scroll-linked colour fill
   const wordSpansRef = useRef([])
   const lastWordFillRef = useRef([])
   const activePoseRef = useRef('pose1')
@@ -76,7 +75,6 @@ export default function About() {
   } = useSmoothScroll()
   const { stage } = useParticleStage()
 
-  // Pre-split paragraphs into word arrays once
   const splitParagraphs = useMemo(
     () => PARAGRAPHS.map((p) => p.split(' ')),
     []
@@ -86,7 +84,7 @@ export default function About() {
     const aboutEl = sectionRef.current
     const heroEl = document.getElementById('hero')
     const fillerEl = document.getElementById('filler')
-    if (!aboutEl) return
+    if (!aboutEl || !heroEl) return
 
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -98,7 +96,6 @@ export default function About() {
     }))
     lastWordFillRef.current = new Float32Array(wordNodes.length).fill(-1)
 
-    // Helper: update sequential word fill with a 3-word soft leading edge
     const applyWordFillProgress = (textProg) => {
       const words = wordSpansRef.current
       const totalWords = words.length
@@ -110,8 +107,7 @@ export default function About() {
       for (let i = 0; i < totalWords; i++) {
         const raw = (cursor - i) / softEdgeWidth
         const fill = raw <= 0 ? 0 : raw >= 1 ? 1 : raw
-        // Only write to DOM when value changes noticeably
-        if (Math.abs(fill - lastWordFillRef.current[i]) > 0.01) {
+        if (Math.abs(fill - lastWordFillRef.current[i]) > 0.015) {
           lastWordFillRef.current[i] = fill
           words[i].el.style.color = computeWordColor(fill, words[i].isMuted)
         }
@@ -127,12 +123,15 @@ export default function About() {
     const triggers = []
 
     // =========================================================================
-    // PART A: CONTINUOUS TRANSITION (Hero -> About, over ~100vh of scroll)
+    // PART A: CONTINUOUS TRANSITION (Hero -> About)
+    // Triggered on heroEl from 'top top' to 'bottom top' (~100vh of scroll).
+    // Using heroEl as the trigger decouples it completely from aboutEl's pin-spacer,
+    // eliminating trackpad scroll locking and hitching!
     // =========================================================================
-    const heroIdentity = heroEl?.querySelector('.hero-section__identity')
-    const heroRole = heroEl?.querySelector('.hero-section__role')
-    const heroCue = heroEl?.querySelector('.hero-section__scroll-wrap')
-    const heroVignette = heroEl?.querySelector('.hero-section__vignette')
+    const heroIdentity = heroEl.querySelector('.hero-section__identity')
+    const heroRole = heroEl.querySelector('.hero-section__role')
+    const heroCue = heroEl.querySelector('.hero-section__scroll-wrap')
+    const heroVignette = heroEl.querySelector('.hero-section__vignette')
     const aboutRevealTargets = [
       eyebrowRef.current,
       headlineRef.current,
@@ -145,11 +144,11 @@ export default function About() {
     }
 
     const transitionSt = ScrollTrigger.create({
-      trigger: aboutEl,
-      start: 'top bottom', // Starts as soon as user scrolls down from Hero (scrollY = 0)
-      end: 'top top',      // Ends when About arrives at top of viewport (~100vh of scroll)
-      scrub: 0.8,          // Soft follow scrub
-      onEnter: () => {
+      trigger: heroEl,
+      start: 'top top',
+      end: 'bottom top',
+      scrub: 0.6,
+      onEnterBack: () => {
         stage.setVisibility(1)
       },
       onLeaveBack: () => {
@@ -158,11 +157,18 @@ export default function About() {
         stage.setTheme(0)
         stage.setScatter(0)
         stage.setMorph('hero', 'pose1', 0)
+        if (heroIdentity && heroRole) {
+          heroIdentity.style.opacity = '1'
+          heroIdentity.style.transform = 'translate3d(0, 0, 0)'
+          heroRole.style.opacity = '1'
+          heroRole.style.transform = 'translate3d(0, 0, 0)'
+        }
+        if (heroCue) heroCue.style.opacity = '1'
+        if (heroVignette) heroVignette.style.opacity = '1'
       },
       onUpdate: (self) => {
-        const p = self.progress // 0..1 over the 100vh transition
+        const p = self.progress // 0..1 as hero leaves and about arrives
 
-        // Active section switches around the midpoint of the background wipe
         if (p >= 0.45) {
           setActiveSection('about')
           setActiveSectionIndex('01')
@@ -184,17 +190,14 @@ export default function About() {
           heroCue.style.opacity = String(Math.max(0, 1 - p / 0.18))
         }
 
-        // 2) 15-70%: Background & Navbar/Index interpolate from --bg-dark to --bg-paper;
-        //    stage.setTheme goes 0 -> 1 on an S-curve
+        // 2) 15-70%: Background & Navbar/Index interpolate from --bg-dark to --bg-paper
         const themeT = Math.max(0, Math.min(1, (p - 0.15) / 0.55))
         stage.setTheme(themeT)
         if (heroVignette) {
           heroVignette.style.opacity = String(1 - themeT)
         }
 
-        // 3) Particle cloud loosen + re-target from 'hero' to 'pose1':
-        //    Around the midpoint, scatter peaks at ~0.6 so portrait loosens into a cloud,
-        //    then reforms as pose 01 on the right half and scatter returns to 0.
+        // 3) Particle morph from hero to pose1 with peak scatter at midpoint
         const morphT = Math.max(0, Math.min(1, (p - 0.12) / 0.82))
         stage.setMorph('hero', 'pose1', morphT)
         const midArc = Math.sin(morphT * Math.PI)
@@ -216,12 +219,12 @@ export default function About() {
     triggers.push(transitionSt)
 
     // =========================================================================
-    // PART C: PINNED, SCROLL-LINKED BEHAVIOUR (~400vh of scroll)
+    // PART C: PINNED, SCROLL-LINKED BEHAVIOUR (~380vh of scroll)
     // =========================================================================
     const pinnedSt = ScrollTrigger.create({
       trigger: aboutEl,
       start: 'top top',
-      end: '+=380%', // 380vh pinned scroll (within 350-450vh window)
+      end: '+=380%',
       pin: true,
       pinSpacing: true,
       scrub: 0.5,
@@ -232,7 +235,7 @@ export default function About() {
         stage.setTheme(1)
         stage.setScatter(0)
         activePoseRef.current = 'pose1'
-        stage.setScene('pose1', { duration: 0.9, stagger: 0.35, scatterBump: 0.08 })
+        stage.setScene('pose1', { duration: 0.8, stagger: 0.35, scatterBump: 0.05 })
       },
       onEnterBack: () => {
         setActiveSection('about')
@@ -241,24 +244,21 @@ export default function About() {
         stage.setTheme(1)
         stage.setScatter(0)
         activePoseRef.current = 'pose3'
-        stage.setScene('pose3', { duration: 1.0, stagger: 0.4, scatterBump: 0.2, force: true })
+        stage.setScene('pose3', { duration: 0.9, stagger: 0.38, scatterBump: 0.15, force: true })
       },
       onUpdate: (self) => {
-        const p = self.progress // 0..1 across the pinned About section
+        const p = self.progress
 
         // 1) Section Index 01 segment fills in proportion to scroll progress
         updateProgress('about', p)
 
-        // 2) Sequential Text Colour Progression (0% -> 88% of pinned scroll, then holds)
+        // 2) Sequential Text Colour Progression (0% -> 88% of pinned scroll)
         if (!prefersReducedMotion) {
           const textProg = Math.max(0, Math.min(1, p / 0.88))
           applyWordFillProgress(textProg)
         }
 
-        // 3) Pose Morphs tied to progress:
-        //    0-35%: pose1 (working-laptop)
-        //    35-70%: pose2 (thinking)
-        //    70-100%: pose3 (analyzing-tablet)
+        // 3) Pose Morphs tied to progress
         let desiredPose = 'pose1'
         if (p >= 0.70) {
           desiredPose = 'pose3'
@@ -294,11 +294,9 @@ export default function About() {
           stage.setScatter(0)
         },
         onUpdate: (self) => {
-          const ep = self.progress // 0..1 as Filler wipes in
-          // Scatter particles outward and fade canvas visibility 1 -> 0
+          const ep = self.progress
           stage.setScatter(ep * 0.72)
           stage.setVisibility(Math.max(0, 1 - ep * 1.1))
-          // Wipe background, Navbar, and Section Index back to dark mode
           stage.setTheme(1 - ep)
         },
       })
@@ -325,7 +323,7 @@ export default function About() {
       aria-label="01 About Me"
     >
       <div ref={contentWrapRef} className="about-section__container">
-        {/* Left Column (~45% width on desktop) */}
+        {/* Left Column (~52% width, max-width 52ch for balanced editorial layout) */}
         <div className="about-section__left">
           {/* Eyebrow: "01   ABOUT ME" + thin rule */}
           <div ref={eyebrowRef} className="about-section__eyebrow">
@@ -334,7 +332,7 @@ export default function About() {
             <span className="about-section__eyebrow-rule" aria-hidden="true" />
           </div>
 
-          {/* Headline in Italic Serif (split into words for colour progression, accessible via aria-label) */}
+          {/* Headline in Italic Serif */}
           <h2
             ref={headlineRef}
             className="about-section__headline"
@@ -357,7 +355,7 @@ export default function About() {
             ))}
           </h2>
 
-          {/* Three Short Paragraphs in Light Grotesk (split into words for sequential fill) */}
+          {/* Three Short Paragraphs: Stretched to 52ch, filling the empty gap */}
           <div ref={paragraphsRef} className="about-section__paragraphs">
             {PARAGRAPHS.map((fullText, pIdx) => (
               <p
@@ -382,7 +380,7 @@ export default function About() {
           </div>
         </div>
 
-        {/* Right Half: Reserved visual stage for the particle figure (pose1 -> pose2 -> pose3) */}
+        {/* Right Half: Reserved visual stage for the particle figure (Shifted Right) */}
         <div className="about-section__right" aria-hidden="true" />
 
         {/* Bottom-Left: "SCROLL TO EXPLORE" with thin horizontal rules */}
