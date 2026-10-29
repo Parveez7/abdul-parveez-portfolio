@@ -1,0 +1,104 @@
+.section-index {
+  position: fixed;
+  left: clamp(1.25rem, 1rem + 1vw, 2.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-index-sidebar);
+  transition: color 0.3s var(--ease-out);
+  user-select: none;
+}
+
+/* -------------------------------------------------------------------------
+   Theme Inversion
+   ------------------------------------------------------------------------- */
+.section-index--dark {
+  --index-color: var(--muted-on-dark);
+  --track-color: rgba(245, 242, 238, 0.15);
+}
+
+.section-index--light {
+  --index-color: var(--muted-on-paper);
+  --track-color: rgba(18, 18, 18, 0.15);
+}
+
+.section-index__list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.section-index__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* -------------------------------------------------------------------------
+   Index Number Button
+   ------------------------------------------------------------------------- */
+.section-index__btn {
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.section-index__btn:hover {
+  transform: scale(1.15);
+}
+
+.section-index__num {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--index-color);
+  transition: color 0.3s var(--ease-out), font-weight 0.3s var(--ease-out);
+}
+
+.section-index__btn--active .section-index__num {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------
+   Line Segments & Scroll Fill
+   ------------------------------------------------------------------------- */
+.section-index__track {
+  width: 1px;
+  height: clamp(24px, 2.5vh, 44px);
+  background-color: var(--track-color);
+  position: relative;
+  overflow: hidden;
+  margin: 3px 0;
+  transition: background-color 0.3s var(--ease-out);
+}
+
+.section-index__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--accent);
+  transform-origin: top center;
+  transform: scaleY(0);
+  will-change: transform;
+}
+
+.section-index__fill--active {
+  box-shadow: 0 0 4px var(--accent-glow);
+}
+
+/* -------------------------------------------------------------------------
+   Hidden on Mobile (< 900px)
+   ------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .section-index {
+    display: none;
+  }
+}

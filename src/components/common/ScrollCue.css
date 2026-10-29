@@ -1,0 +1,126 @@
+.scroll-cue {
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: var(--z-scrollcue);
+  opacity: 1;
+  transition: opacity 0.5s var(--ease-out), color 0.3s var(--ease-out);
+}
+
+.scroll-cue--hidden {
+  opacity: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Theme Inversion
+   ------------------------------------------------------------------------- */
+.scroll-cue--dark {
+  color: var(--text-light);
+  --cue-line-color: rgba(245, 242, 238, 0.25);
+  --cue-border-color: rgba(245, 242, 238, 0.6);
+  --cue-dot-color: var(--text-light);
+}
+
+.scroll-cue--light {
+  color: var(--ink);
+  --cue-line-color: rgba(18, 18, 18, 0.25);
+  --cue-border-color: rgba(18, 18, 18, 0.6);
+  --cue-dot-color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------
+   Centered Variant (Hero, Filler)
+   ------------------------------------------------------------------------- */
+.scroll-cue--centered {
+  position: absolute;
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* -------------------------------------------------------------------------
+   Left-Aligned Variant (About section)
+   ------------------------------------------------------------------------- */
+.scroll-cue--left {
+  position: absolute;
+  bottom: clamp(1.5rem, 3vh, 3rem);
+  left: clamp(1.5rem, 3.5vw, 4.5rem);
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+/* -------------------------------------------------------------------------
+   Mouse Outline & Animated Dot
+   ------------------------------------------------------------------------- */
+.scroll-cue__mouse {
+  width: 17px;
+  height: 27px;
+  border: 1.5px solid var(--cue-border-color);
+  border-radius: 9px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 5px;
+  transition: border-color 0.3s var(--ease-out);
+}
+
+.scroll-cue__wheel {
+  width: 2.5px;
+  height: 4px;
+  border-radius: 1.5px;
+  background-color: var(--cue-dot-color);
+  animation: mouseWheelMove 2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  transition: background-color 0.3s var(--ease-out);
+}
+
+@keyframes mouseWheelMove {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  30% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Label Text
+   ------------------------------------------------------------------------- */
+.scroll-cue__label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+/* -------------------------------------------------------------------------
+   Accent Lines
+   ------------------------------------------------------------------------- */
+.scroll-cue__line-vert {
+  width: 1px;
+  height: 48px;
+  background-color: var(--cue-line-color);
+  transition: background-color 0.3s var(--ease-out);
+}
+
+.scroll-cue__line-horiz {
+  width: clamp(40px, 5vw, 80px);
+  height: 1px;
+  background-color: var(--cue-line-color);
+  transition: background-color 0.3s var(--ease-out);
+}
