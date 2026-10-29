@@ -5,6 +5,7 @@ import './SectionIndex.css'
 
 export default function SectionIndex() {
   const {
+    activeSection,
     activeSectionIndex,
     activeTheme,
     scrollTo,
@@ -13,16 +14,15 @@ export default function SectionIndex() {
 
   // References to line segment progress fills for 01..05
   const segmentRefs = useRef([])
+  const isHeroSection = activeSection === 'hero'
 
   useEffect(() => {
-    // Unsubscribe functions
     const unsubs = []
 
     SITE.sectionIndex.forEach((item, idx) => {
       const unsub = subscribeProgress(item.id, (progress) => {
         const fillEl = segmentRefs.current[idx]
         if (fillEl) {
-          // Clamp progress 0..1 and update scaleY on GPU thread
           const clamped = Math.max(0, Math.min(1, progress || 0))
           fillEl.style.transform = `scaleY(${clamped})`
         }
@@ -44,8 +44,9 @@ export default function SectionIndex() {
     <aside
       className={`section-index ${
         activeTheme === 'light' ? 'section-index--light' : 'section-index--dark'
-      }`}
+      } ${isHeroSection ? 'section-index--hidden' : ''}`}
       aria-label="Section Index"
+      aria-hidden={isHeroSection}
     >
       <nav className="section-index__list">
         {SITE.sectionIndex.map((item, idx) => {
@@ -54,7 +55,6 @@ export default function SectionIndex() {
 
           return (
             <div key={item.index} className="section-index__step">
-              {/* Number Item */}
               <button
                 type="button"
                 onClick={(e) => handleClick(e, item.id)}
@@ -65,7 +65,6 @@ export default function SectionIndex() {
                 <span className="section-index__num">{item.index}</span>
               </button>
 
-              {/* Vertical line segment between numbers */}
               {!isLast && (
                 <div className="section-index__track">
                   <div
@@ -83,4 +82,3 @@ export default function SectionIndex() {
     </aside>
   )
 }
-

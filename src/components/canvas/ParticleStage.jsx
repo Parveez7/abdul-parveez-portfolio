@@ -35,13 +35,15 @@ export function ParticleStageProvider({ children }) {
   // stage.setScene(name, opts), stage.setTheme(value), stage.setScatter(value), stage.setVisibility(0..1), stage.destroy()
   const stageApi = useMemo(
     () => ({
+      playHeroEntrance: (opts) => {
+        engineRef.current?.playHeroEntrance(opts)
+      },
       setScene: (name, opts) => {
         engineRef.current?.setScene(name, opts)
       },
       setTheme: (value) => {
         const clamped = Math.max(0, Math.min(1, Number(value) || 0))
         engineRef.current?.setTheme(clamped)
-        // Drive CSS variable for smooth background interpolation alongside particles
         document.documentElement.style.setProperty(
           '--stage-dynamic-bg',
           computeThemeBgColor(clamped)
@@ -73,10 +75,7 @@ export function ParticleStageProvider({ children }) {
     })
     engineRef.current = engine
 
-    // Initialize default dark background variable
     document.documentElement.style.setProperty('--stage-dynamic-bg', '#0E0E10')
-
-    // Expose on window for console/timeline inspection
     window.__particleStage = stageApi
 
     return () => {

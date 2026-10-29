@@ -51,6 +51,8 @@ export class ParticleEngine {
     this.isTabHidden = false
     this.isIntersecting = true
     this.isDestroyed = false
+    this.heroEntrancePlayed = false
+    this.heroEntranceQueued = false
 
     // Scene transition stagger state
     this.transitionTimer = 999
@@ -58,12 +60,14 @@ export class ParticleEngine {
     this.transitionStagger = PARTICLE_CONFIG.transition.defaultStagger
     this.transitionPulse = 0
 
-    // Pointer state (smoothed)
+    // Pointer state (smoothed) & subtle portrait parallax (max 8-10px)
     this.rawPointerX = -9999
     this.rawPointerY = -9999
     this.pointerX = -9999
     this.pointerY = -9999
     this.pointerActive = false
+    this.parallaxX = 0
+    this.parallaxY = 0
 
     // Performance & FPS telemetry
     this.lastFrameTime = performance.now()
@@ -129,14 +133,14 @@ export class ParticleEngine {
     this.redBuckets = Array.from({ length: NUM_RED_BUCKETS }, () => new Int32Array(n))
     this.redBucketCounts = new Int32Array(NUM_RED_BUCKETS)
 
-    // Initialize particles with organic spread around center
+    // Initialize particles in a scattered state prior to hero entrance
     const cx = this.vw * 0.5
     const cy = this.vh * 0.52
     const redRatio = PARTICLE_CONFIG.colors.redParticleRatio
 
     for (let i = 0; i < n; i++) {
       const angle = Math.random() * Math.PI * 2
-      const radius = Math.sqrt(Math.random()) * Math.min(this.vw, this.vh) * 0.45
+      const radius = (0.15 + Math.sqrt(Math.random()) * 0.65) * Math.max(this.vw, this.vh) * 0.55
       const px = cx + Math.cos(angle) * radius
       const py = cy + Math.sin(angle) * radius
 
@@ -151,7 +155,6 @@ export class ParticleEngine {
       const isRed = Math.random() < redRatio ? 1 : 0
       this.type[i] = isRed
 
-      // Red accent specks and occasional foreground specks get slightly larger sizes
       if (isRed) {
         this.size[i] = 1.25 + Math.pow(Math.random(), 1.6) * 2.1
       } else {
@@ -159,7 +162,7 @@ export class ParticleEngine {
       }
 
       this.alpha[i] = 0.0
-      this.targetAlpha[i] = 0.45
+      this.targetAlpha[i] = 0.0
       this.nextAlpha[i] = 0.45
     }
   }
@@ -178,7 +181,6 @@ export class ParticleEngine {
   }
 
   _bindEvents() {
-    // Pointer events on window (since canvas has pointer-events: none)
     this._onPointerMove = (e) => {
       if (this.isTouchDevice) return
       this.rawPointerX = e.clientX
@@ -192,13 +194,11 @@ export class ParticleEngine {
       this.rawPointerY = -9999
     }
 
-    // Pause when browser tab is hidden
     this._onVisibilityChange = () => {
       this.isTabHidden = document.hidden
       this.lastFrameTime = performance.now()
     }
 
-    // Debounced window resize -> rebuild scene targets cleanly
     this._resizeTimer = null
     this._onResize = () => {
       clearTimeout(this._resizeTimer)
@@ -208,11 +208,9 @@ export class ParticleEngine {
         const prevH = this.vh
         this._resizeCanvas()
 
-        // Update activeCount cap for breakpoint (clamped to allocated maxCount)
         const desiredCount = this._computeTargetCount(this.vw)
         this.activeCount = Math.min(this.maxCount, desiredCount)
 
-        // Proportionally shift current particles immediately so there's zero jump
         const scaleX = this.vw / Math.max(1, prevW)
         const scaleY = this.vh / Math.max(1, prevH)
         for (let i = 0; i < this.maxCount; i++) {
@@ -220,7 +218,6 @@ export class ParticleEngine {
           this.y[i] *= scaleY
         }
 
-        // Clear target cache & rebuild active scene immediately, others in idle callback
         this.targetCache.clear()
         this._buildSceneTargetsSync(this.currentScene)
         this._applyTargetsImmediate(this.currentScene)
@@ -237,7 +234,6 @@ export class ParticleEngine {
     document.addEventListener('visibilitychange', this._onVisibilityChange)
     window.addEventListener('resize', this._onResize, { passive: true })
 
-    // IntersectionObserver on canvas
     if ('IntersectionObserver' in window) {
       this._io = new IntersectionObserver(
         (entries) => {
@@ -263,19 +259,22 @@ export class ParticleEngine {
 
   async _initAssets() {
     try {
-      // 1. Load hero portrait first for immediate startup
       const heroImg = await this._loadImage(SCENE_URLS.hero)
       if (this.isDestroyed) return
       this.images.set('hero', heroImg)
 
       this._buildSceneTargetsSync('hero')
-      this._applyTargetsImmediate('hero')
 
       if (this.isReducedMotion) {
+        this._applyTargetsImmediate('hero')
         this._renderStaticFrame()
+      } else if (this.heroEntranceQueued || this.heroEntrancePlayed) {
+        this.playHeroEntrance()
+      } else {
+        // Prepare scattered starting cloud for hero entrance
+        this._prepareScatteredHeroStart()
       }
 
-      // 2. Load & precompute About poses (pose1, pose2, pose3) in background
       const poseNames = ['pose1', 'pose2', 'pose3']
       await Promise.all(
         poseNames.map(async (name) => {
@@ -291,6 +290,31 @@ export class ParticleEngine {
       }
     } catch (err) {
       console.error('[ParticleEngine] Asset load error:', err)
+    }
+  }
+
+  _prepareScatteredHeroStart() {
+    const targets = this._buildSceneTargetsSync('hero')
+    if (!targets) return
+    const { x, y, brightness } = targets
+    const n = this.maxCount
+    const spreadScale = Math.min(this.vw, this.vh) * 0.32
+
+    for (let i = 0; i < n; i++) {
+      const angle = this.seed[i] * 2.3
+      const dist = (0.3 + Math.random() * 0.7) * spreadScale
+      const sx = x[i] + Math.cos(angle) * dist
+      const sy = y[i] + Math.sin(angle) * dist - 35
+
+      this.x[i] = sx
+      this.y[i] = sy
+      this.tx[i] = sx
+      this.ty[i] = sy
+      this.nextTx[i] = x[i]
+      this.nextTy[i] = y[i]
+      this.alpha[i] = brightness[i] * 0.18
+      this.targetAlpha[i] = brightness[i] * 0.18
+      this.nextAlpha[i] = brightness[i]
     }
   }
 
@@ -359,6 +383,72 @@ export class ParticleEngine {
      ========================================================================= */
 
   /**
+   * Plays the Hero Entrance assembly (~2.2s):
+   * Particles start scattered and assemble into the portrait with stagger and ease-out,
+   * beginning at the head (top Y) and moving downward toward the torso/arms.
+   */
+  playHeroEntrance(opts = {}) {
+    if (this.isDestroyed) return
+    this.heroEntranceQueued = true
+
+    const targets = this._buildSceneTargetsSync('hero')
+    if (!targets) return
+
+    this.heroEntrancePlayed = true
+    this.currentScene = 'hero'
+
+    if (this.isReducedMotion) {
+      this._applyTargetsImmediate('hero')
+      this._renderStaticFrame()
+      return
+    }
+
+    const duration = opts.duration ?? 2.2
+    const { x, y, brightness } = targets
+    const n = this.maxCount
+
+    // Find vertical bounds [minY, maxY] to stagger assembly from head downward
+    let minY = Infinity
+    let maxY = -Infinity
+    for (let i = 0; i < n; i++) {
+      if (y[i] < minY) minY = y[i]
+      if (y[i] > maxY) maxY = y[i]
+    }
+    const spanY = Math.max(1, maxY - minY)
+    const spreadScale = Math.min(this.vw, this.vh) * 0.28
+
+    this.transitionDuration = duration
+    this.transitionStagger = 1.15
+    this.transitionTimer = 0
+    this.transitionPulse = 0.65
+
+    for (let i = 0; i < n; i++) {
+      const normY = Math.max(0, Math.min(1, (y[i] - minY) / spanY))
+      const angle = this.seed[i] * 2.3
+      const dist = (0.25 + Math.random() * 0.75) * spreadScale
+
+      // Start scattered around the portrait
+      const sx = x[i] + Math.cos(angle) * dist
+      const sy = y[i] + Math.sin(angle) * dist - 28
+
+      this.x[i] = sx
+      this.y[i] = sy
+      this.tx[i] = sx
+      this.ty[i] = sy
+      this.nextTx[i] = x[i]
+      this.nextTy[i] = y[i]
+
+      this.alpha[i] = brightness[i] * 0.15
+      this.targetAlpha[i] = brightness[i] * 0.22
+      this.nextAlpha[i] = brightness[i]
+
+      // Top-down stagger: head (normY ~ 0) starts immediately, torso/arms follow downward
+      this.delay[i] = normY * 0.92 + Math.random() * 0.22
+      this.pendingRetarget[i] = 1
+    }
+  }
+
+  /**
    * Morphs particles to a named scene ('hero' | 'pose1' | 'pose2' | 'pose3')
    * with randomised per-particle stagger so the figure dissolves and reforms like a cloud.
    */
@@ -396,8 +486,6 @@ export class ParticleEngine {
 
   /**
    * Sets global theme value (0 = dark background, 1 = paper background).
-   * Drives particle colour (#F5F2EE -> #121212 + #E8283C red specks)
-   * with an S-curve and mid-flight scatter boost to avoid mid-grey invisibility.
    */
   setTheme(value) {
     const clamped = Math.max(0, Math.min(1, Number(value) || 0))
@@ -461,7 +549,6 @@ export class ParticleEngine {
     const dtMs = Math.min(100, now - this.lastFrameTime)
     this.lastFrameTime = now
 
-    // Exponential moving average of frame time & automatic particle count downscaling
     this.avgFrameMs = this.avgFrameMs * 0.92 + dtMs * 0.08
     this.fps = Math.round(1000 / Math.max(1, this.avgFrameMs))
 
@@ -481,10 +568,10 @@ export class ParticleEngine {
 
     const dtSec = Math.min(0.05, dtMs * 0.001)
     this.transitionTimer += dtSec
-    this.transitionPulse = Math.max(0, this.transitionPulse - dtSec * 1.35)
+    this.transitionPulse = Math.max(0, this.transitionPulse - dtSec * 1.15)
 
-    // Smooth pointer coordinates with lerp
-    if (this.pointerActive) {
+    // Smooth pointer coordinates with lerp & compute subtle portrait parallax (max ~9px)
+    if (this.pointerActive && !this.isTouchDevice) {
       const lerp = PARTICLE_CONFIG.cursor.pointerLerp
       if (this.pointerX < -1000) {
         this.pointerX = this.rawPointerX
@@ -493,22 +580,29 @@ export class ParticleEngine {
         this.pointerX += (this.rawPointerX - this.pointerX) * lerp
         this.pointerY += (this.rawPointerY - this.pointerY) * lerp
       }
+
+      const normX = (this.rawPointerX / Math.max(1, this.vw) - 0.5) * 2
+      const normY = (this.rawPointerY / Math.max(1, this.vh) - 0.5) * 2
+      const targetPx = normX * 9.0
+      const targetPy = normY * 7.0
+      this.parallaxX += (targetPx - this.parallaxX) * 0.06
+      this.parallaxY += (targetPy - this.parallaxY) * 0.06
     } else {
       this.pointerX = -9999
       this.pointerY = -9999
+      this.parallaxX += (0 - this.parallaxX) * 0.06
+      this.parallaxY += (0 - this.parallaxY) * 0.06
     }
 
     // Mid-theme crossover factor: peaks at theme = 0.5 (4 * t * (1 - t))
-    // Pushes scatter to ~0.6 at midpoint so particles are mid-flight while colour flips
     const tTheme = this.theme
     const midCrossover = 4 * tTheme * (1 - tTheme)
     const crossoverScatter = 0.6 * Math.pow(midCrossover, 1.35)
-    const effectiveScatter = Math.max(this.scatter, crossoverScatter) + this.transitionPulse * 0.22
+    const effectiveScatter = Math.max(this.scatter, crossoverScatter) + this.transitionPulse * 0.18
 
     this._stepPhysics(time, effectiveScatter)
     this._drawBatches(midCrossover)
 
-    // Periodic telemetry callback (~every 15 frames)
     this.frameCounter++
     if (this.onTelemetry && this.frameCounter % 15 === 0) {
       this.onTelemetry({
@@ -541,6 +635,8 @@ export class ParticleEngine {
       delay,
       seed,
       pendingRetarget,
+      parallaxX,
+      parallaxY,
     } = this
 
     const stiffness = PARTICLE_CONFIG.physics.stiffness
@@ -554,7 +650,6 @@ export class ParticleEngine {
         ? PARTICLE_CONFIG.physics.scatterRadiusMobile
         : PARTICLE_CONFIG.physics.scatterRadiusDesktop) * effectiveScatter
 
-    // Cursor repulsion parameters
     const cursorRadius = PARTICLE_CONFIG.cursor.baseRadius * Math.max(0.65, this.vw / 1440)
     const cursorRadiusSq = cursorRadius * cursorRadius
     const repelStrength = PARTICLE_CONFIG.cursor.repelStrength
@@ -565,22 +660,22 @@ export class ParticleEngine {
     for (let i = 0; i < n; i++) {
       const s = seed[i]
 
-      // 1. Check staggered scene retargeting
+      // 1. Check staggered scene / entrance retargeting
       if (pendingRetarget[i] === 1 && tTimer >= delay[i]) {
         pendingRetarget[i] = 0
         tx[i] = nextTx[i]
         ty[i] = nextTy[i]
         targetAlpha[i] = nextAlpha[i]
 
-        // Apply organic curl impulse when particle begins its flight to new pose
         const curlAngle = s + time * 1.5
-        vx[i] += Math.cos(curlAngle) * 4.5
-        vy[i] += Math.sin(curlAngle) * 4.5
+        vx[i] += Math.cos(curlAngle) * 3.2
+        vy[i] += Math.sin(curlAngle) * 3.2
       }
 
-      // 2. Compute target with optional curl/noise scatter offset
-      let destX = tx[i]
-      let destY = ty[i]
+      // 2. Compute target with subtle mouse parallax (depth-weighted) & optional scatter
+      const depthMod = 0.65 + targetAlpha[i] * 0.45
+      let destX = tx[i] + parallaxX * depthMod
+      let destY = ty[i] + parallaxY * depthMod
 
       if (scatterDist > 0.25) {
         const noiseAngle = s * 3.0 + time * 1.35
@@ -597,7 +692,7 @@ export class ParticleEngine {
       let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
       let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
 
-      // 4. Cursor repulsion (fast bounding-box pre-check rejects ~97% of particles)
+      // 4. Cursor repulsion (soft spring back)
       if (hasPointer) {
         const cdx = x[i] - px
         if (cdx > -cursorRadius && cdx < cursorRadius) {
@@ -606,7 +701,8 @@ export class ParticleEngine {
             const distSq = cdx * cdx + cdy * cdy
             if (distSq < cursorRadiusSq && distSq > 0.01) {
               const dist = Math.sqrt(distSq)
-              const force = (1 - dist / cursorRadius) * repelStrength
+              const falloff = 1 - dist / cursorRadius
+              const force = falloff * falloff * repelStrength
               nvx += (cdx / dist) * force
               nvy += (cdy / dist) * force
             }
@@ -619,8 +715,7 @@ export class ParticleEngine {
       x[i] += nvx
       y[i] += nvy
 
-      // Smooth alpha interpolation
-      alpha[i] += (targetAlpha[i] - alpha[i]) * 0.08
+      alpha[i] += (targetAlpha[i] - alpha[i]) * 0.075
     }
   }
 
@@ -641,14 +736,12 @@ export class ParticleEngine {
 
     ctx.clearRect(0, 0, this.vw, this.vh)
 
-    // Reset bucket counters
     for (let b = 0; b < NUM_PRIMARY_BUCKETS; b++) primaryBucketCounts[b] = 0
     for (let b = 0; b < NUM_RED_BUCKETS; b++) redBucketCounts[b] = 0
 
-    // 1. Eased S-curve for theme colour to avoid lingering in mid-grey
     const t = this.theme
     const u = Math.max(0, Math.min(1, (t - 0.22) / 0.56))
-    const colorMix = u * u * (3 - 2 * u) // Steep S-curve: 0 on dark, 1 on paper
+    const colorMix = u * u * (3 - 2 * u)
 
     const [rLight, gLight, bLight] = PARTICLE_CONFIG.colors.lightTextRgb
     const [rInk, gInk, bInk] = PARTICLE_CONFIG.colors.darkInkRgb
@@ -658,19 +751,15 @@ export class ParticleEngine {
     const pG = Math.round(gLight + (gInk - gLight) * colorMix)
     const pB = Math.round(bLight + (bInk - bLight) * colorMix)
 
-    // Red share fades in smoothly with theme value (0 in Hero, full #E8283C in About)
     const redMix = Math.max(0, Math.min(1, (t - 0.15) / 0.65))
     const redR = Math.round(rLight + (rRed - rLight) * redMix)
     const redG = Math.round(gLight + (gRed - gLight) * redMix)
     const redB = Math.round(bLight + (bRed - bLight) * redMix)
     const useRedBuckets = redMix > 0.05
 
-    // Opacity boost on paper so ink dots read as rich texture, plus slight boost during crossover
     const opacityBoost = 1.0 + t * 0.35 + midCrossover * 0.22
-    // Particles are slightly larger at the mid-crossover point while in flight
     const sizeBoost = 1.0 + midCrossover * 0.36
 
-    // 2. Partition particles into alpha/colour buckets
     for (let i = 0; i < n; i++) {
       const a = alpha[i] * opacityBoost
       if (a < 0.05) continue
@@ -685,7 +774,6 @@ export class ParticleEngine {
       }
     }
 
-    // 3. Batch-draw Primary Buckets (only 4 fill() calls total!)
     const bucketAlphas = [0.22, 0.44, 0.68, 0.92]
     for (let b = 0; b < NUM_PRIMARY_BUCKETS; b++) {
       const count = primaryBucketCounts[b]
@@ -705,7 +793,6 @@ export class ParticleEngine {
       ctx.fill()
     }
 
-    // 4. Batch-draw Red Speck Buckets (only 2 fill() calls total!)
     if (useRedBuckets) {
       const redAlphas = [0.52, 0.92]
       for (let rb = 0; rb < NUM_RED_BUCKETS; rb++) {

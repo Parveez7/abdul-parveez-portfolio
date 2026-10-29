@@ -7,7 +7,6 @@
  * 3. Samples target positions weighted by luminance and edge contrast, returning { x, y, brightness } Float32Arrays.
  */
 
-// Reusable offscreen canvas for sampling
 let sharedOffscreenCanvas = null
 let sharedOffscreenCtx = null
 
@@ -43,15 +42,30 @@ function createRng(seed = 1337) {
  */
 export function computeSceneLayoutRect(sceneName, vw, vh, imgWidth, imgHeight) {
   const imgAspect = imgWidth / Math.max(1, imgHeight)
-  const isMobile = vw < 768
-  const isTablet = vw >= 768 && vw < 1024
+  const isMobile = vw < 700
+  const isTablet = vw >= 700 && vw < 1024
 
   if (sceneName === 'hero') {
-    // Centred, head and torso, anchored near bottom
-    const targetH = isMobile ? vh * 0.78 : vh * 0.94
-    const targetW = targetH * imgAspect
+    if (isMobile) {
+      // Mobile (<700px): Portrait centred at ~75% visible figure width,
+      // positioned vertically between the top name and bottom tagline.
+      // Note: the subject occupies ~64% of the 16:9 source image width.
+      const targetW = Math.min(vw * 1.16, vh * 0.62 * imgAspect)
+      const targetH = targetW / imgAspect
+      const x = (vw - targetW) * 0.5
+      const y = (vh - targetH) * 0.50
+      return { x, y, width: targetW, height: targetH }
+    }
+
+    // Desktop & Tablet (>=700px):
+    // Centred, head and torso visible, fading out toward the bottom edge,
+    // constrained on intermediate widths so side text never overlaps the portrait.
+    const maxWByViewport = isTablet ? vw * 0.82 : vw * 0.92
+    const desiredH = vh * 0.94
+    const targetW = Math.min(desiredH * imgAspect, maxWByViewport)
+    const targetH = targetW / imgAspect
     const x = (vw - targetW) * 0.5
-    const y = isMobile ? vh * 0.18 : vh * 0.06
+    const y = vh - targetH * 0.98
     return { x, y, width: targetW, height: targetH }
   }
 
@@ -98,7 +112,7 @@ export function computeSceneLayoutRect(sceneName, vw, vh, imgWidth, imgHeight) {
  * @param {number} options.count - Number of particles in the pool (N)
  * @param {number} options.viewportWidth - Current viewport width in CSS px
  * @param {number} options.viewportHeight - Current viewport height in CSS px
- * @param {number} [options.threshold=16] - Minimum brightness threshold (0..255)
+ * @param {number} [options.threshold=15] - Minimum brightness threshold (0..255)
  * @returns {{ x: Float32Array, y: Float32Array, brightness: Float32Array, rawTargetCount: number, durationMs: number }}
  */
 export function buildTargets(image, options = {}) {
@@ -118,8 +132,8 @@ export function buildTargets(image, options = {}) {
   // 1. Compute target layout rectangle in viewport coordinates
   const rect = computeSceneLayoutRect(sceneName, viewportWidth, viewportHeight, imgW, imgH)
 
-  // Scale offscreen sampling buffer so sampling always finishes in < 15ms while keeping fine detail
-  const maxSampleDim = isHero ? 540 : 480
+  // Scale offscreen sampling buffer so sampling finishes in < 10ms while keeping crisp detail
+  const maxSampleDim = isHero ? 560 : 480
   const scale = Math.min(1, maxSampleDim / Math.max(imgW, imgH))
   const sampleW = Math.max(64, Math.round(imgW * scale))
   const sampleH = Math.max(64, Math.round(imgH * scale))
@@ -131,7 +145,7 @@ export function buildTargets(image, options = {}) {
   const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data
   const totalPixels = sampleW * sampleH
 
-  // Pre-compute luminance and chroma buffers
+  // Pre-compute luminance, warmth, and chroma buffers
   const lumBuf = new Float32Array(totalPixels)
   const warmthBuf = new Float32Array(totalPixels)
   const chromaBuf = new Float32Array(totalPixels)
@@ -156,28 +170,27 @@ export function buildTargets(image, options = {}) {
   }
 
   // 2. Compute 3x3 Sobel local contrast (edges) & candidate importance weights
-  // Store candidate pixels that pass the threshold
   const candU = new Float32Array(totalPixels)
   const candV = new Float32Array(totalPixels)
   const candWeight = new Float32Array(totalPixels)
   const candBright = new Float32Array(totalPixels)
   let candCount = 0
 
-  for (let py = 1; py < sampleH - 1; py++) {
+  for (let py = 2; py < sampleH - 2; py++) {
     const v = py / sampleH
 
     // For hero portrait: smooth vertical fade out near the bottom (v > 0.72 -> 0.96)
     let bottomFade = 1.0
     if (isHero) {
       if (v > 0.96) continue
-      if (v > 0.70) {
-        const tFade = (v - 0.70) / 0.26
-        bottomFade = Math.max(0, 1 - tFade * tFade)
+      if (v > 0.72) {
+        const tFade = (v - 0.72) / 0.24
+        bottomFade = Math.max(0, 1 - Math.pow(tFade, 1.6))
       }
     }
 
     const rowOffset = py * sampleW
-    for (let px = 1; px < sampleW - 1; px++) {
+    for (let px = 2; px < sampleW - 2; px++) {
       const u = px / sampleW
       const i = rowOffset + px
       const lum = lumBuf[i]
@@ -194,61 +207,75 @@ export function buildTargets(image, options = {}) {
 
       const gx = -tl + tr - 2 * ml + 2 * mr - bl + br
       const gy = -tl - 2 * tc - tr + bl + 2 * bc + br
-      const edgeMag = Math.sqrt(gx * gx + gy * gy) * 0.25 // Normalized ~0..255
+      const edgeMag = Math.sqrt(gx * gx + gy * gy) * 0.25
 
       let weight = 0
       let brightness = 0
 
       if (isHero) {
-        // portrait-original-photo.png has a smooth neutral-grey studio backdrop.
-        // Reject studio backdrop: low warmth, low chroma, low edge contrast, or outside figure bounds.
+        if (u < 0.18 || u > 0.82) continue
         const warmth = warmthBuf[i]
         const chroma = chromaBuf[i]
 
-        // Distance from center horizontally (person sits inside u in [0.18..0.82])
-        const dxCenter = Math.abs(u - 0.5)
-        if (dxCenter > 0.34) continue
+        // Reject smooth neutral-grey studio backdrop (w < 14 && c < 15 && lum in 40..158)
+        if (warmth < 14 && chroma < 15 && lum > 40 && lum < 158) continue
 
-        // Head ellipse check (u ~ 0.5, v ~ 0.36)
-        const headDist = Math.hypot((u - 0.495) / 0.11, (v - 0.35) / 0.19)
-        const inHeadOrTorso =
-          headDist < 1.05 ||
-          (v > 0.46 && dxCenter < 0.14 + (v - 0.46) * 0.42)
+        // Check if near studio background boundary (2px radius) for crisp silhouette rim
+        let nearBg = 0
+        const nLeft = i - 2
+        const nRight = i + 2
+        const nTop = i - sampleW * 2
+        const nBot = i + sampleW * 2
+        if (
+          (warmthBuf[nLeft] < 14 && chromaBuf[nLeft] < 15 && lumBuf[nLeft] > 40 && lumBuf[nLeft] < 158) ||
+          (warmthBuf[nRight] < 14 && chromaBuf[nRight] < 15 && lumBuf[nRight] > 40 && lumBuf[nRight] < 158) ||
+          (warmthBuf[nTop] < 14 && chromaBuf[nTop] < 15 && lumBuf[nTop] > 40 && lumBuf[nTop] < 158) ||
+          (warmthBuf[nBot] < 14 && chromaBuf[nBot] < 15 && lumBuf[nBot] > 40 && lumBuf[nBot] < 158)
+        ) {
+          nearBg = 1
+        }
 
-        // Studio backdrop is neutral grey (warmth < 13 && chroma < 14) and smooth (edgeMag < 11)
-        const isStudioGrey = warmth < 13 && chroma < 14 && edgeMag < 11 && lum > 34 && lum < 120
-        if (isStudioGrey || !inHeadOrTorso) continue
+        const normEdge = Math.min(1, edgeMag / 26)
+        const normLum = Math.min(1, lum / 245)
 
-        // Emphasize edges (glasses, curly hair, beard contour, collar, sleeve folds)
-        // while keeping interior face dark and moody (matching hero-particle-inspiration.png)
-        const normEdge = Math.min(1, edgeMag / 42)
-        const normLum = Math.min(1, lum / 240)
+        if (v < 0.54) {
+          // Head, curly hair, glasses, beard, neck
+          const isHairTop = v < 0.325
+          const isGlassesBand = v >= 0.348 && v <= 0.432 && Math.abs(u - 0.49) < 0.082
+          const faceCenterDist = Math.hypot((u - 0.49) / 0.068, (v - 0.425) / 0.105)
 
-        if (v < 0.50) {
-          // Head, hair, glasses, beard region:
-          // Strong boost for edges (glasses rim, hair curls, beard edge) and rim highlights
-          const isGlassesZone = v > 0.33 && v < 0.43 && dxCenter < 0.075
-          const edgeBoost = isGlassesZone ? normEdge * 2.2 : normEdge * 1.65
-
-          // Suppress flat mid-tone skin in center of face so face stays sculptural and dark
-          const isFlatFaceSkin = headDist < 0.72 && normEdge < 0.18 && lum > 65 && lum < 175
-          if (isFlatFaceSkin) {
-            weight = normEdge * 0.25
+          if (isHairTop) {
+            // Curly hair: rim contour + internal curl edges
+            weight = nearBg * 1.65 + normEdge * 1.75 + 0.15
+            brightness = Math.min(1, 0.36 + nearBg * 0.45 + normEdge * 0.5)
+          } else if (isGlassesBand) {
+            // Emphasize dark/metallic glasses frame rim and specular glints, keep lens interior darker
+            const isFrameRim = normEdge > 0.25 && (lum < 115 || lum > 170)
+            if (isFrameRim) {
+              weight = normEdge * 2.25
+              brightness = Math.min(1, 0.5 + normEdge * 0.5)
+            } else {
+              weight = normEdge * 0.22
+              brightness = 0.25 + normEdge * 0.25
+            }
+          } else if (faceCenterDist < 0.92 && !nearBg) {
+            // Interior face & beard stays dark and moody with sparse subtle texture
+            weight = normEdge * 0.13 + 0.025
+            brightness = 0.2 + normEdge * 0.25
           } else {
-            // Hair curls & rim highlights
-            weight = edgeBoost + (lum > 130 ? normLum * 0.65 : 0) + (lum < 32 && normEdge > 0.12 ? 0.35 : 0)
+            // Outer jawline, ears, beard rim, neck shadow
+            weight = nearBg * 1.5 + normEdge * 1.15 + 0.1
+            brightness = 0.32 + nearBg * 0.42 + normEdge * 0.35
           }
-          brightness = Math.min(1, 0.35 + normEdge * 0.55 + normLum * 0.25)
         } else {
-          // Torso & sweater region:
-          // Combine fabric fold edges + warm sweater luminance texture
-          const sweaterTex = warmth > 15 ? Math.pow(normLum, 1.3) * 0.52 : 0
-          weight = (normEdge * 1.45 + sweaterTex) * bottomFade
-          brightness = Math.min(1, (0.3 + normEdge * 0.45 + normLum * 0.35) * bottomFade)
+          // Sweater, collar, shoulders, arms
+          const foldEdge = Math.pow(normEdge, 0.85) * 1.55
+          const fabricTone = warmth > 12 ? Math.pow(Math.max(0, (lum - 85) / 170), 1.4) * 0.48 : 0.12
+          weight = (nearBg * 1.1 + foldEdge + fabricTone) * bottomFade
+          brightness = Math.min(1, (0.28 + normEdge * 0.48 + normLum * 0.32) * bottomFade)
         }
       } else {
         // About poses (pose1, pose2, pose3):
-        // Already rendered on pure black background; sample where lum > threshold
         if (lum < threshold && edgeMag < 12) continue
 
         const normLum = Math.min(1, (lum - threshold) / (255 - threshold))
@@ -258,7 +285,7 @@ export function buildTargets(image, options = {}) {
         brightness = Math.min(1, 0.35 + normLum * 0.45 + normEdge * 0.25)
       }
 
-      if (weight > 0.06) {
+      if (weight > 0.04) {
         candU[candCount] = u
         candV[candCount] = v
         candWeight[candCount] = weight
@@ -275,7 +302,6 @@ export function buildTargets(image, options = {}) {
   const rng = createRng(sceneName.charCodeAt(0) * 997 + count)
 
   if (candCount === 0) {
-    // Fallback safety if image wasn't ready
     for (let i = 0; i < count; i++) {
       outX[i] = viewportWidth * 0.5 + (rng() - 0.5) * 200
       outY[i] = viewportHeight * 0.5 + (rng() - 0.5) * 200
@@ -284,7 +310,6 @@ export function buildTargets(image, options = {}) {
     return { x: outX, y: outY, brightness: outBrightness, rawTargetCount: 0, durationMs: 0 }
   }
 
-  // Build cumulative distribution (CDF) for importance-weighted sampling
   const cdf = new Float32Array(candCount)
   let runningSum = 0
   for (let i = 0; i < candCount; i++) {
@@ -292,16 +317,12 @@ export function buildTargets(image, options = {}) {
     cdf[i] = runningSum
   }
 
-  // Reserve a portion of particles for atmospheric effect:
-  // - Hero: ~4% subtle halo dust around portrait
-  // - About Poses: ~14% rightward dissolving speck cloud (matching about-section-inspiration.png)
-  const dispersionShare = isHero ? 0.04 : 0.14
+  const dispersionShare = isHero ? 0.035 : 0.14
   const figureCount = Math.floor(count * (1 - dispersionShare))
 
   const cellW = rect.width / sampleW
   const cellH = rect.height / sampleH
 
-  // Binary search helper on CDF
   const pickCandidateIndex = (rVal) => {
     const targetVal = rVal * runningSum
     let low = 0
@@ -319,14 +340,12 @@ export function buildTargets(image, options = {}) {
 
   // Fill primary figure targets using stratified importance sampling
   for (let i = 0; i < figureCount; i++) {
-    // Stratified step + small jitter for even coverage across head, glasses, torso, legs
     const stratifiedR = (i + rng()) / figureCount
     const cIdx = pickCandidateIndex(stratifiedR)
 
     const u = candU[cIdx]
     const v = candV[cIdx]
 
-    // Sub-cell organic jitter so particles never align on a visible pixel grid
     const jitterX = (rng() - 0.5) * cellW * 1.35
     const jitterY = (rng() - 0.5) * cellH * 1.35
 
@@ -335,7 +354,7 @@ export function buildTargets(image, options = {}) {
     outBrightness[i] = candBright[cIdx]
   }
 
-  // Fill remaining particles (dispersion / drifting specks)
+  // Fill remaining atmospheric / dispersion specks
   for (let i = figureCount; i < count; i++) {
     const cIdx = pickCandidateIndex(rng())
     const baseU = candU[cIdx]
@@ -344,19 +363,16 @@ export function buildTargets(image, options = {}) {
     const baseY = rect.y + baseV * rect.height
 
     if (isHero) {
-      // Soft halo specks around shoulders and hair
       const angle = rng() * Math.PI * 2
-      const dist = (12 + Math.pow(rng(), 2) * 85) * (viewportWidth / 1440)
+      const dist = (8 + Math.pow(rng(), 2) * 55) * (viewportWidth / 1440)
       outX[i] = baseX + Math.cos(angle) * dist
       outY[i] = baseY + Math.sin(angle) * dist
-      outBrightness[i] = 0.18 + rng() * 0.35
+      outBrightness[i] = 0.16 + rng() * 0.28
     } else {
-      // About poses: Dissolving speck cloud drifting off to the right (see about-section-inspiration.png)
       const spreadRight = Math.pow(rng(), 1.45) * rect.width * 0.52 + 8
       const spreadVert = (rng() - 0.48) * rect.height * 0.36
       outX[i] = baseX + spreadRight
       outY[i] = baseY + spreadVert
-      // Dissolving specks have varied opacity so some look crisp and some soft
       outBrightness[i] = 0.25 + rng() * 0.65
     }
   }

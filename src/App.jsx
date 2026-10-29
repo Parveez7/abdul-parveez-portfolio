@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { SmoothScrollProvider } from './context/SmoothScrollContext'
 import { ParticleStageProvider, useParticleStage } from './components/canvas/ParticleStage'
@@ -7,11 +7,11 @@ import Navbar from './components/common/Navbar'
 import SectionIndex from './components/common/SectionIndex'
 import ScrollCue from './components/common/ScrollCue'
 import Loader from './components/common/Loader'
+import Hero from './components/sections/Hero'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
- * Clean Section Container Shell
- * Maintains theme attributes, 100svh minimum height, and ScrollTrigger binding
+ * Clean Section Container Shell for upcoming sections
  */
 function SectionShell({ id, theme, index, children }) {
   const sectionRef = useRef(null)
@@ -31,13 +31,18 @@ function SectionShell({ id, theme, index, children }) {
 
 function PortfolioRoot() {
   const { stage } = useParticleStage()
+  const [isLoaded, setIsLoaded] = useState(false)
+  const showDebug = typeof window !== 'undefined' && window.location.search.includes('debug')
+
+  const handleLoaderComplete = useCallback(() => {
+    setIsLoaded(true)
+  }, [])
 
   // Connect Hero -> About -> Filler scroll transitions to the Particle Stage
   useEffect(() => {
-    const heroEl = document.getElementById('hero')
     const aboutEl = document.getElementById('about')
     const fillerEl = document.getElementById('filler')
-    if (!heroEl || !aboutEl) return
+    if (!aboutEl) return
 
     const triggers = []
 
@@ -85,40 +90,38 @@ function PortfolioRoot() {
 
   return (
     <>
-      {/* 1. Global Preloader */}
-      <Loader />
+      {/* 1. Global Preloader (releases Hero entrance animation on completion) */}
+      <Loader onLoaded={handleLoaderComplete} />
 
-      {/* 2. Fixed Top Navbar (theme-reactive, monogram crossfade) */}
+      {/* 2. Fixed Top Navbar (monogram in Hero, crossfades to full name on scroll) */}
       <Navbar />
 
-      {/* 3. Fixed Left Section Index (01..05, desktop only) */}
+      {/* 3. Fixed Left Section Index (01..05, hidden on Hero & mobile) */}
       <SectionIndex />
 
-      {/* 4. Temporary Debug Panel for verifying morphs & theme crossover */}
-      <ParticleDebugPanel />
+      {/* Optional Debug Panel (available via ?debug query parameter) */}
+      {showDebug && <ParticleDebugPanel />}
 
-      {/* 5. Section Shells */}
+      {/* 4. Main Content Sections */}
       <main>
-        {/* 01: Hero (Dark Theme) */}
-        <SectionShell id="hero" theme="dark" index="01">
-          <ScrollCue variant="centered" />
-        </SectionShell>
+        {/* Hero Section */}
+        <Hero isLoaded={isLoaded} />
 
-        {/* 01 (Nav) / 01 (Index): About (Light Paper Theme) */}
+        {/* 01: About Shell (built in Prompt 4) */}
         <SectionShell id="about" theme="light" index="01">
           <ScrollCue variant="left" />
         </SectionShell>
 
-        {/* 02: Filler / Jack of all trades (Dark Theme) */}
+        {/* 02: Filler Shell */}
         <SectionShell id="filler" theme="dark" index="02" />
 
-        {/* 03: Featured Projects (Dark Theme) */}
+        {/* 03: Projects Shell */}
         <SectionShell id="projects" theme="dark" index="03" />
 
-        {/* 04: Experience & Achievements (Dark Theme) */}
+        {/* 04: Experience & Achievements Shell */}
         <SectionShell id="experience" theme="dark" index="04" />
 
-        {/* 05: Contact & Footer (Dark Theme) */}
+        {/* 05: Contact Shell */}
         <SectionShell id="contact" theme="dark" index="05" />
       </main>
     </>

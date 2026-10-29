@@ -51,3 +51,4 @@ export const PARTICLE_CONFIG = {
     defaultStagger: 0.55,
   },
 }
+
