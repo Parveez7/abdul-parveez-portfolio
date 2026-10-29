@@ -1,0 +1,441 @@
+import React, { useRef, useEffect, useState, useMemo } from 'react'
+import { gsap } from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useSmoothScroll } from '../../context/SmoothScrollContext'
+import { FILLER_DATA } from '../../data/filler'
+import ScrollCue from '../common/ScrollCue'
+import './Filler.css'
+
+export default function Filler() {
+  const {
+    setActiveTheme,
+    setActiveSection,
+    setActiveSectionIndex,
+    updateProgress,
+  } = useSmoothScroll()
+
+  const sectionRef = useRef(null)
+  const line1Ref = useRef(null)
+  const line2Ref = useRef(null)
+  const phrasesContainerRef = useRef(null)
+  const cueRef = useRef(null)
+
+  const [activePhraseIndex, setActivePhraseIndex] = useState(0)
+  const [isPulse, setIsPulse] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+
+  // Pre-split phrases into characters for performant DOM-level transformation
+  const phraseCharacters = useMemo(() => {
+    return FILLER_DATA.phrases.map((phrase) => {
+      return phrase.split('').map((char, cIdx) => ({
+        id: `${phrase}-${cIdx}`,
+        char: char === ' ' ? '\u00A0' : char,
+        isSpace: char === ' ',
+      }))
+    })
+  }, [])
+
+  useEffect(() => {
+    // 1. Reduced motion check
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setPrefersReducedMotion(mediaQuery.matches)
+    if (mediaQuery.matches) {
+      // For reduced motion, report section when scrolled into view
+      const st = ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: 'top 50%',
+        end: 'bottom 50%',
+        onEnter: () => {
+          setActiveSection('filler')
+          setActiveSectionIndex('02')
+          setActiveTheme('dark')
+        },
+        onEnterBack: () => {
+          setActiveSection('filler')
+          setActiveSectionIndex('02')
+          setActiveTheme('dark')
+        },
+      })
+      return () => st.kill()
+    }
+
+    const sectionEl = sectionRef.current
+    if (!sectionEl) return
+
+    const triggers = []
+
+    // -------------------------------------------------------------------------
+    // 1. Entrance Reveal (translateY 110% -> 0 for static white lines)
+    // -------------------------------------------------------------------------
+    const lineInners = [line1Ref.current, line2Ref.current].filter(Boolean)
+    gsap.set(lineInners, { yPercent: 115, opacity: 0 })
+
+    const phraseHolders = phrasesContainerRef.current?.querySelectorAll(
+      '.filler-section__slot-holder'
+    )
+    if (phraseHolders && phraseHolders.length > 0) {
+      // Hide all except first phrase initially
+      phraseHolders.forEach((holder, idx) => {
+        if (idx !== 0) {
+          gsap.set(holder, { opacity: 0, yPercent: 110, pointerEvents: 'none' })
+        } else {
+          gsap.set(holder, { opacity: 1, yPercent: 0 })
+        }
+      })
+    }
+
+    let hasRevealed = false
+    const entranceSt = ScrollTrigger.create({
+      trigger: sectionEl,
+      start: 'top 85%',
+      once: true,
+      onEnter: () => {
+        if (hasRevealed) return
+        hasRevealed = true
+
+        // Quick mask-up animation: translateY 110% -> 0, ~700ms, stagger ~80ms
+        gsap.to(lineInners, {
+          yPercent: 0,
+          opacity: 1,
+          duration: 0.7,
+          stagger: 0.08,
+          ease: 'power3.out',
+        })
+
+        // First red phrase lands last with subtle character reveal
+        const firstPhraseChars = phrasesContainerRef.current?.querySelectorAll(
+          '.filler-section__slot-holder[data-index="0"] .filler-char'
+        )
+        if (firstPhraseChars && firstPhraseChars.length > 0) {
+          gsap.fromTo(
+            firstPhraseChars,
+            { yPercent: 90, opacity: 0 },
+            {
+              yPercent: 0,
+              opacity: 1,
+              duration: 0.55,
+              stagger: 0.012,
+              delay: 0.18,
+              ease: 'power2.out',
+            }
+          )
+        }
+      },
+    })
+    triggers.push(entranceSt)
+
+    // -------------------------------------------------------------------------
+    // 2. Continuous Scrubbed Pinning (~450vh total, ~90vh per phrase)
+    // -------------------------------------------------------------------------
+    const phraseCount = FILLER_DATA.phrases.length
+    let lastActiveIdx = -1
+
+    const pinnedSt = ScrollTrigger.create({
+      trigger: sectionEl,
+      start: 'top top',
+      end: '+=450%', // 450vh of scroll
+      pin: true,
+      pinSpacing: true,
+      scrub: 0.6,
+      // Snapping: 5 phrases centered at 0.10, 0.30, 0.50, 0.70, 0.90
+      snap: {
+        snapTo: [0.10, 0.30, 0.50, 0.70, 0.90],
+        duration: { min: 0.25, max: 0.6 },
+        ease: 'power2.inOut',
+      },
+      onEnter: () => {
+        setActiveSection('filler')
+        setActiveSectionIndex('02')
+        setActiveTheme('dark')
+      },
+      onEnterBack: () => {
+        setActiveSection('filler')
+        setActiveSectionIndex('02')
+        setActiveTheme('dark')
+      },
+      onLeaveBack: () => {
+        setActiveSection('about')
+        setActiveSectionIndex('01')
+        setActiveTheme('light')
+      },
+      onUpdate: (self) => {
+        const p = self.progress // 0..1 across the 450vh scroll
+        updateProgress('filler', p)
+
+        // Ensure theme & navbar stay in dark mode while scrolling in Filler
+        if (p > 0.01 && p < 0.99) {
+          setActiveSection('filler')
+          setActiveSectionIndex('02')
+          setActiveTheme('dark')
+        }
+
+        // Active phrase calculation (0..4)
+        const currentIdx = Math.max(
+          0,
+          Math.min(phraseCount - 1, Math.floor(p * phraseCount))
+        )
+        if (currentIdx !== lastActiveIdx) {
+          lastActiveIdx = currentIdx
+          setActivePhraseIndex(currentIdx)
+        }
+
+        // ScrollCue visibility: visible only during phrase 0, smooth fade out by p = 0.12
+        if (cueRef.current) {
+          const cueOpacity = Math.max(0, 1 - p / 0.12)
+          cueRef.current.style.opacity = String(cueOpacity)
+          cueRef.current.style.pointerEvents = cueOpacity > 0.1 ? 'auto' : 'none'
+        }
+
+        // Glow pulse detection around boundaries (0.20, 0.40, 0.60, 0.80)
+        let nearSwap = false
+        const boundaries = [0.20, 0.40, 0.60, 0.80]
+        for (let b = 0; b < boundaries.length; b++) {
+          if (Math.abs(p - boundaries[b]) < 0.032) {
+            nearSwap = true
+            break
+          }
+        }
+        setIsPulse(nearSwap)
+
+        // ---------------------------------------------------------------------
+        // Continuous, glitch-free phrase swapping with character stagger
+        // ---------------------------------------------------------------------
+        if (!phraseHolders || phraseHolders.length === 0) return
+
+        for (let i = 0; i < phraseCount; i++) {
+          const holder = phraseHolders[i]
+          const chars = holder.querySelectorAll('.filler-char')
+
+          // Transition timing windows per phrase
+          // Phrase 0: Hold 0.00..0.15, Exit 0.15..0.22
+          // Phrase 1: Enter 0.18..0.25, Hold 0.25..0.35, Exit 0.35..0.42
+          // Phrase 2: Enter 0.38..0.45, Hold 0.45..0.55, Exit 0.55..0.62
+          // Phrase 3: Enter 0.58..0.65, Hold 0.65..0.75, Exit 0.75..0.82
+          // Phrase 4: Enter 0.78..0.85, Hold 0.85..1.00
+
+          let enterStart = i === 0 ? -1 : (i - 1) * 0.20 + 0.18
+          let enterEnd = i === 0 ? -1 : i * 0.20 + 0.05
+          let exitStart = i === phraseCount - 1 ? 2 : i * 0.20 + 0.15
+          let exitEnd = i === phraseCount - 1 ? 2 : i * 0.20 + 0.22
+
+          if (i === 0) {
+            if (p <= exitStart) {
+              // Resting in place
+              holder.style.opacity = '1'
+              holder.style.transform = 'translate3d(0, 0%, 0)'
+              chars.forEach((c) => {
+                c.style.transform = 'translate3d(0, 0%, 0)'
+                c.style.opacity = '1'
+              })
+            } else if (p > exitStart && p < exitEnd) {
+              // Outgoing slide-up + fade out
+              const tOut = (p - exitStart) / (exitEnd - exitStart)
+              const easedOut = tOut * tOut
+              holder.style.opacity = String(Math.max(0, 1 - tOut * 1.3))
+              holder.style.transform = `translate3d(0, ${-easedOut * 115}%, 0)`
+            } else {
+              // Completely gone above
+              holder.style.opacity = '0'
+              holder.style.transform = 'translate3d(0, -115%, 0)'
+            }
+          } else if (i === phraseCount - 1) {
+            if (p < enterStart) {
+              // Below mask
+              holder.style.opacity = '0'
+              holder.style.transform = 'translate3d(0, 115%, 0)'
+            } else if (p >= enterStart && p < enterEnd) {
+              // Incoming slide-up with character stagger
+              const tIn = (p - enterStart) / (enterEnd - enterStart)
+              const holderAlpha = Math.min(1, tIn * 1.5)
+              holder.style.opacity = String(holderAlpha)
+              holder.style.transform = 'translate3d(0, 0%, 0)'
+
+              const numChars = chars.length
+              chars.forEach((c, cIdx) => {
+                const charDelay = (cIdx / Math.max(1, numChars)) * 0.32
+                const localT = Math.max(0, Math.min(1, (tIn - charDelay) / 0.68))
+                const charEase = 1 - Math.pow(1 - localT, 3)
+                c.style.transform = `translate3d(0, ${(1 - charEase) * 105}%, 0)`
+                c.style.opacity = String(charEase)
+              })
+            } else {
+              // Resting in place for final phrase (0.85 -> 1.0)
+              holder.style.opacity = '1'
+              holder.style.transform = 'translate3d(0, 0%, 0)'
+              chars.forEach((c) => {
+                c.style.transform = 'translate3d(0, 0%, 0)'
+                c.style.opacity = '1'
+              })
+            }
+          } else {
+            // Intermediate phrases (1, 2, 3)
+            if (p < enterStart) {
+              // Below mask
+              holder.style.opacity = '0'
+              holder.style.transform = 'translate3d(0, 115%, 0)'
+            } else if (p >= enterStart && p < enterEnd) {
+              // Incoming slide-up
+              const tIn = (p - enterStart) / (enterEnd - enterStart)
+              const holderAlpha = Math.min(1, tIn * 1.5)
+              holder.style.opacity = String(holderAlpha)
+              holder.style.transform = 'translate3d(0, 0%, 0)'
+
+              const numChars = chars.length
+              chars.forEach((c, cIdx) => {
+                const charDelay = (cIdx / Math.max(1, numChars)) * 0.32
+                const localT = Math.max(0, Math.min(1, (tIn - charDelay) / 0.68))
+                const charEase = 1 - Math.pow(1 - localT, 3)
+                c.style.transform = `translate3d(0, ${(1 - charEase) * 105}%, 0)`
+                c.style.opacity = String(charEase)
+              })
+            } else if (p >= enterEnd && p <= exitStart) {
+              // Resting
+              holder.style.opacity = '1'
+              holder.style.transform = 'translate3d(0, 0%, 0)'
+              chars.forEach((c) => {
+                c.style.transform = 'translate3d(0, 0%, 0)'
+                c.style.opacity = '1'
+              })
+            } else if (p > exitStart && p < exitEnd) {
+              // Outgoing slide-up + fade out
+              const tOut = (p - exitStart) / (exitEnd - exitStart)
+              const easedOut = tOut * tOut
+              holder.style.opacity = String(Math.max(0, 1 - tOut * 1.3))
+              holder.style.transform = `translate3d(0, ${-easedOut * 115}%, 0)`
+            } else {
+              // Past above
+              holder.style.opacity = '0'
+              holder.style.transform = 'translate3d(0, -115%, 0)'
+            }
+          }
+        }
+      },
+    })
+    triggers.push(pinnedSt)
+
+    return () => {
+      triggers.forEach((t) => t.kill())
+    }
+  }, [
+    setActiveTheme,
+    setActiveSection,
+    setActiveSectionIndex,
+    updateProgress,
+  ])
+
+  return (
+    <section
+      ref={sectionRef}
+      id="filler"
+      data-theme="dark"
+      className="filler-section"
+      aria-label="Philosophy"
+    >
+      {/* 1. Subtle Film Grain & Radial Vignette */}
+      <div className="filler-section__grain" aria-hidden="true" />
+      <div className="filler-section__vignette" aria-hidden="true" />
+
+      {/* 2. Accessible Hidden Screen-Reader Transcript */}
+      <div className="sr-only">
+        {FILLER_DATA.screenReaderSummary}
+      </div>
+
+      {/* 3. Main Stage Content */}
+      <div className="filler-section__stage">
+        <div className="filler-section__content">
+          {/* Static White Line 1: "JACK OF ALL TRADES," */}
+          <div className="filler-section__line-mask">
+            <span ref={line1Ref} className="filler-section__line-inner">
+              {FILLER_DATA.staticLines[0]}
+            </span>
+          </div>
+
+          {/* Static White Line 2: "MASTER OF" */}
+          <div className="filler-section__line-mask">
+            <span ref={line2Ref} className="filler-section__line-inner">
+              {FILLER_DATA.staticLines[1]}
+            </span>
+          </div>
+
+          {/* Slot Line: One Red Line Changing Through Five Phrases */}
+          {!prefersReducedMotion ? (
+            <div
+              className="filler-section__slot-wrapper"
+              aria-hidden="true"
+            >
+              <div
+                ref={phrasesContainerRef}
+                className="filler-section__slot-container"
+              >
+                {FILLER_DATA.phrases.map((phrase, pIdx) => (
+                  <div
+                    key={phrase}
+                    data-index={pIdx}
+                    className="filler-section__slot-holder"
+                  >
+                    <span
+                      className={`filler-section__phrase ${
+                        isPulse && activePhraseIndex === pIdx
+                          ? 'filler-section__phrase--pulse'
+                          : ''
+                      }`}
+                    >
+                      {phraseCharacters[pIdx].map((item) => (
+                        <span
+                          key={item.id}
+                          className={`filler-char ${
+                            item.isSpace ? 'filler-char--space' : ''
+                          }`}
+                        >
+                          {item.char}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Reduced Motion: Unpinned Static Stack in Red */
+            <div className="filler-section__reduced-stack">
+              {FILLER_DATA.phrases.map((phrase) => (
+                <div key={phrase} className="filler-section__reduced-item">
+                  {phrase}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 4. Bottom Progress Indicator (5 ticks + counter) */}
+      {!prefersReducedMotion && (
+        <div className="filler-section__progress" aria-hidden="true">
+          <div className="filler-section__ticks">
+            {FILLER_DATA.phrases.map((_, tIdx) => (
+              <span
+                key={tIdx}
+                className={`filler-section__tick ${
+                  activePhraseIndex === tIdx ? 'filler-section__tick--active' : ''
+                }`}
+              />
+            ))}
+          </div>
+          <span className="filler-section__counter">
+            {String(activePhraseIndex + 1).padStart(2, '0')} / 05
+          </span>
+        </div>
+      )}
+
+      {/* 5. Scroll Cue (shown on first phrase, fades as user scrolls) */}
+      {!prefersReducedMotion && (
+        <div ref={cueRef} className="filler-section__cue">
+          <ScrollCue
+            variant="centered"
+            persistOnScroll={true}
+          />
+        </div>
+      )}
+    </section>
+  )
+}

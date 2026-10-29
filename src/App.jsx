@@ -7,6 +7,7 @@ import SectionIndex from './components/common/SectionIndex'
 import Loader from './components/common/Loader'
 import Hero from './components/sections/Hero'
 import About from './components/sections/About'
+import Filler from './components/sections/Filler'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
@@ -58,8 +59,8 @@ function PortfolioRoot() {
         {/* 01: About Section (Continuous Hero->About transition + Pinned 3-pose narrative) */}
         <About />
 
-        {/* 02: Filler Shell */}
-        <SectionShell id="filler" theme="dark" index="02" />
+        {/* 02: Pinned Philosophy / Filler Section ("Jack of all trades...") */}
+        <Filler />
 
         {/* 03: Projects Shell */}
         <SectionShell id="projects" theme="dark" index="03" />
