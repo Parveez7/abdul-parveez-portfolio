@@ -6,13 +6,27 @@ import './ParticleStage.css'
 const ParticleStageContext = createContext(null)
 
 /**
- * Helper to interpolate between #0E0E10 (14,14,16) and #FAFAF8 (250,250,248)
+ * Updates root CSS variables continuously for 0..1 theme progress
+ * so background, Navbar, and SectionIndex interpolate in sync without hard breakpoints.
  */
-function computeThemeBgColor(t) {
-  const r = Math.round(14 + (250 - 14) * t)
-  const g = Math.round(14 + (250 - 14) * t)
-  const b = Math.round(16 + (248 - 16) * t)
-  return `rgb(${r}, ${g}, ${b})`
+function applyContinuousThemeVars(t) {
+  const root = document.documentElement
+  // Background: #0E0E10 (14,14,16) -> #FAFAF8 (250,250,248)
+  const bgR = Math.round(14 + (250 - 14) * t)
+  const bgG = Math.round(14 + (250 - 14) * t)
+  const bgB = Math.round(16 + (248 - 16) * t)
+
+  // Foreground (Navbar & Index text): #F5F2EE (245,242,238) -> #121212 (18,18,18)
+  const fgR = Math.round(245 + (18 - 245) * t)
+  const fgG = Math.round(242 + (18 - 242) * t)
+  const fgB = Math.round(238 + (18 - 238) * t)
+
+  root.style.setProperty('--stage-dynamic-bg', `rgb(${bgR}, ${bgG}, ${bgB})`)
+  root.style.setProperty('--chrome-fg', `rgb(${fgR}, ${fgG}, ${fgB})`)
+  root.style.setProperty('--chrome-muted', `rgba(${fgR}, ${fgG}, ${fgB}, 0.55)`)
+  root.style.setProperty('--chrome-track', `rgba(${fgR}, ${fgG}, ${fgB}, 0.16)`)
+  root.style.setProperty('--chrome-glass-bg', `rgba(${bgR}, ${bgG}, ${bgB}, 0.78)`)
+  root.style.setProperty('--chrome-border', `rgba(${fgR}, ${fgG}, ${fgB}, 0.06)`)
 }
 
 export function ParticleStageProvider({ children }) {
@@ -31,8 +45,6 @@ export function ParticleStageProvider({ children }) {
 
   const { setActiveTheme } = useSmoothScroll()
 
-  // Public imperative API matching specification:
-  // stage.setScene(name, opts), stage.setTheme(value), stage.setScatter(value), stage.setVisibility(0..1), stage.destroy()
   const stageApi = useMemo(
     () => ({
       playHeroEntrance: (opts) => {
@@ -41,13 +53,13 @@ export function ParticleStageProvider({ children }) {
       setScene: (name, opts) => {
         engineRef.current?.setScene(name, opts)
       },
+      setMorph: (fromName, toName, progress) => {
+        engineRef.current?.setMorph(fromName, toName, progress)
+      },
       setTheme: (value) => {
         const clamped = Math.max(0, Math.min(1, Number(value) || 0))
         engineRef.current?.setTheme(clamped)
-        document.documentElement.style.setProperty(
-          '--stage-dynamic-bg',
-          computeThemeBgColor(clamped)
-        )
+        applyContinuousThemeVars(clamped)
         setActiveTheme(clamped >= 0.5 ? 'light' : 'dark')
       },
       setScatter: (value) => {
@@ -75,7 +87,7 @@ export function ParticleStageProvider({ children }) {
     })
     engineRef.current = engine
 
-    document.documentElement.style.setProperty('--stage-dynamic-bg', '#0E0E10')
+    applyContinuousThemeVars(0)
     window.__particleStage = stageApi
 
     return () => {

@@ -60,7 +60,7 @@ export class ParticleEngine {
     this.transitionStagger = PARTICLE_CONFIG.transition.defaultStagger
     this.transitionPulse = 0
 
-    // Pointer state (smoothed) & subtle portrait parallax (max 8-10px)
+    // Pointer state (smoothed) & subtle portrait parallax (8-12px)
     this.rawPointerX = -9999
     this.rawPointerY = -9999
     this.pointerX = -9999
@@ -101,19 +101,16 @@ export class ParticleEngine {
   }
 
   _allocateBuffers(n) {
-    // Positions & velocities
     this.x = new Float32Array(n)
     this.y = new Float32Array(n)
     this.vx = new Float32Array(n)
     this.vy = new Float32Array(n)
 
-    // Active targets & queued scene targets (for staggered morphs)
     this.tx = new Float32Array(n)
     this.ty = new Float32Array(n)
     this.nextTx = new Float32Array(n)
     this.nextTy = new Float32Array(n)
 
-    // Appearance & stagger delay
     this.size = new Float32Array(n)
     this.alpha = new Float32Array(n)
     this.targetAlpha = new Float32Array(n)
@@ -121,19 +118,15 @@ export class ParticleEngine {
     this.delay = new Float32Array(n)
     this.seed = new Float32Array(n)
 
-    // Type flag: 0 = primary (white/ink), 1 = red speck (~4.2% in About scenes)
     this.type = new Uint8Array(n)
-    // Pending flag: 1 = waiting for per-particle stagger delay to elapse
     this.pendingRetarget = new Uint8Array(n)
 
-    // Pre-allocate batch rendering bucket index arrays (zero GC in render loop)
     this.primaryBuckets = Array.from({ length: NUM_PRIMARY_BUCKETS }, () => new Int32Array(n))
     this.primaryBucketCounts = new Int32Array(NUM_PRIMARY_BUCKETS)
 
     this.redBuckets = Array.from({ length: NUM_RED_BUCKETS }, () => new Int32Array(n))
     this.redBucketCounts = new Int32Array(NUM_RED_BUCKETS)
 
-    // Initialize particles in a scattered state prior to hero entrance
     const cx = this.vw * 0.5
     const cy = this.vh * 0.52
     const redRatio = PARTICLE_CONFIG.colors.redParticleRatio
@@ -271,7 +264,6 @@ export class ParticleEngine {
       } else if (this.heroEntranceQueued || this.heroEntrancePlayed) {
         this.playHeroEntrance()
       } else {
-        // Prepare scattered starting cloud for hero entrance
         this._prepareScatteredHeroStart()
       }
 
@@ -407,7 +399,6 @@ export class ParticleEngine {
     const { x, y, brightness } = targets
     const n = this.maxCount
 
-    // Find vertical bounds [minY, maxY] to stagger assembly from head downward
     let minY = Infinity
     let maxY = -Infinity
     for (let i = 0; i < n; i++) {
@@ -427,7 +418,6 @@ export class ParticleEngine {
       const angle = this.seed[i] * 2.3
       const dist = (0.25 + Math.random() * 0.75) * spreadScale
 
-      // Start scattered around the portrait
       const sx = x[i] + Math.cos(angle) * dist
       const sy = y[i] + Math.sin(angle) * dist - 28
 
@@ -442,7 +432,6 @@ export class ParticleEngine {
       this.targetAlpha[i] = brightness[i] * 0.22
       this.nextAlpha[i] = brightness[i]
 
-      // Top-down stagger: head (normY ~ 0) starts immediately, torso/arms follow downward
       this.delay[i] = normY * 0.92 + Math.random() * 0.22
       this.pendingRetarget[i] = 1
     }
@@ -454,9 +443,11 @@ export class ParticleEngine {
    */
   setScene(name, opts = {}) {
     if (!SCENE_URLS[name] || this.isDestroyed) return
+    if (this.currentScene === name && this.transitionTimer > 0.6 && !opts.force) return
 
     const duration = opts.duration ?? PARTICLE_CONFIG.transition.defaultDuration
     const stagger = opts.stagger ?? PARTICLE_CONFIG.transition.defaultStagger
+    const scatterBump = opts.scatterBump ?? 0.25
 
     this.currentScene = name
     const targets = this._buildSceneTargetsSync(name)
@@ -468,7 +459,7 @@ export class ParticleEngine {
     this.transitionDuration = duration
     this.transitionStagger = stagger
     this.transitionTimer = 0
-    this.transitionPulse = 1.0
+    this.transitionPulse = Math.max(this.transitionPulse, scatterBump * 3.5)
 
     for (let i = 0; i < n; i++) {
       this.nextTx[i] = x[i]
@@ -480,6 +471,54 @@ export class ParticleEngine {
 
     if (this.isReducedMotion) {
       this._applyTargetsImmediate(name)
+      this._renderStaticFrame()
+    }
+  }
+
+  /**
+   * Continuously scrubs particle targets between two scenes (0..1) with per-particle stagger.
+   * Ensures 100% reversible, butter-smooth scroll transitions (e.g. Hero <-> About Pose 01).
+   */
+  setMorph(fromName, toName, progress) {
+    if (this.isDestroyed) return
+    const fromTargets = this._buildSceneTargetsSync(fromName)
+    const toTargets = this._buildSceneTargetsSync(toName)
+    if (!fromTargets || !toTargets) return
+
+    const t = Math.max(0, Math.min(1, Number(progress) || 0))
+    this.currentScene = t >= 0.5 ? toName : fromName
+
+    const fx = fromTargets.x
+    const fy = fromTargets.y
+    const fb = fromTargets.brightness
+    const txArr = toTargets.x
+    const tyArr = toTargets.y
+    const tb = toTargets.brightness
+
+    const n = this.maxCount
+    const staggerSpan = 0.42
+    const invSpan = 1 / (1 - staggerSpan)
+
+    for (let i = 0; i < n; i++) {
+      // Deterministic per-particle stagger from seed (0..0.42)
+      const pStagger = (this.seed[i] * 0.15915494) * staggerSpan
+      const localT = Math.max(0, Math.min(1, (t - pStagger) * invSpan))
+      // Smoothstep easing per particle
+      const easeT = localT * localT * (3 - 2 * localT)
+
+      this.tx[i] = fx[i] + (txArr[i] - fx[i]) * easeT
+      this.ty[i] = fy[i] + (tyArr[i] - fy[i]) * easeT
+      this.targetAlpha[i] = fb[i] + (tb[i] - fb[i]) * easeT
+      this.pendingRetarget[i] = 0
+
+      if (this.isReducedMotion) {
+        this.x[i] = this.tx[i]
+        this.y[i] = this.ty[i]
+        this.alpha[i] = this.targetAlpha[i]
+      }
+    }
+
+    if (this.isReducedMotion) {
       this._renderStaticFrame()
     }
   }
@@ -570,7 +609,7 @@ export class ParticleEngine {
     this.transitionTimer += dtSec
     this.transitionPulse = Math.max(0, this.transitionPulse - dtSec * 1.15)
 
-    // Smooth pointer coordinates with lerp & compute subtle portrait parallax (max ~9px)
+    // Smooth pointer coordinates with lerp & compute subtle portrait parallax (9px Hero, 12px About)
     if (this.pointerActive && !this.isTouchDevice) {
       const lerp = PARTICLE_CONFIG.cursor.pointerLerp
       if (this.pointerX < -1000) {
@@ -581,10 +620,12 @@ export class ParticleEngine {
         this.pointerY += (this.rawPointerY - this.pointerY) * lerp
       }
 
+      const maxParallaxX = 9.0 + this.theme * 3.0 // 9px in Hero -> 12px in About
+      const maxParallaxY = 7.0 + this.theme * 2.5
       const normX = (this.rawPointerX / Math.max(1, this.vw) - 0.5) * 2
       const normY = (this.rawPointerY / Math.max(1, this.vh) - 0.5) * 2
-      const targetPx = normX * 9.0
-      const targetPy = normY * 7.0
+      const targetPx = normX * maxParallaxX
+      const targetPy = normY * maxParallaxY
       this.parallaxX += (targetPx - this.parallaxX) * 0.06
       this.parallaxY += (targetPy - this.parallaxY) * 0.06
     } else {
@@ -594,7 +635,6 @@ export class ParticleEngine {
       this.parallaxY += (0 - this.parallaxY) * 0.06
     }
 
-    // Mid-theme crossover factor: peaks at theme = 0.5 (4 * t * (1 - t))
     const tTheme = this.theme
     const midCrossover = 4 * tTheme * (1 - tTheme)
     const crossoverScatter = 0.6 * Math.pow(midCrossover, 1.35)
@@ -660,7 +700,6 @@ export class ParticleEngine {
     for (let i = 0; i < n; i++) {
       const s = seed[i]
 
-      // 1. Check staggered scene / entrance retargeting
       if (pendingRetarget[i] === 1 && tTimer >= delay[i]) {
         pendingRetarget[i] = 0
         tx[i] = nextTx[i]
@@ -668,11 +707,10 @@ export class ParticleEngine {
         targetAlpha[i] = nextAlpha[i]
 
         const curlAngle = s + time * 1.5
-        vx[i] += Math.cos(curlAngle) * 3.2
-        vy[i] += Math.sin(curlAngle) * 3.2
+        vx[i] += Math.cos(curlAngle) * 3.4
+        vy[i] += Math.sin(curlAngle) * 3.4
       }
 
-      // 2. Compute target with subtle mouse parallax (depth-weighted) & optional scatter
       const depthMod = 0.65 + targetAlpha[i] * 0.45
       let destX = tx[i] + parallaxX * depthMod
       let destY = ty[i] + parallaxY * depthMod
@@ -684,7 +722,6 @@ export class ParticleEngine {
         destY += Math.sin(noiseAngle * 1.15) * scatterDist * radialMod
       }
 
-      // 3. Spring force + idle noise shimmer
       const dx = destX - x[i]
       const dy = destY - y[i]
       const phase = s + timeFreq
@@ -692,7 +729,6 @@ export class ParticleEngine {
       let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
       let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
 
-      // 4. Cursor repulsion (soft spring back)
       if (hasPointer) {
         const cdx = x[i] - px
         if (cdx > -cursorRadius && cdx < cursorRadius) {
@@ -715,7 +751,7 @@ export class ParticleEngine {
       x[i] += nvx
       y[i] += nvy
 
-      alpha[i] += (targetAlpha[i] - alpha[i]) * 0.075
+      alpha[i] += (targetAlpha[i] - alpha[i]) * 0.085
     }
   }
 
@@ -757,12 +793,16 @@ export class ParticleEngine {
     const redB = Math.round(bLight + (bRed - bLight) * redMix)
     const useRedBuckets = redMix > 0.05
 
-    const opacityBoost = 1.0 + t * 0.35 + midCrossover * 0.22
+    // On mobile (< 900px), reduce particle opacity behind About text to ~0.35 so text stays legible
+    const isMobileAbout = this.vw < 900 && t > 0.1
+    const mobileAttenuation = isMobileAbout ? 1 - t * 0.65 : 1.0
+
+    const opacityBoost = (1.0 + t * 0.35 + midCrossover * 0.22) * mobileAttenuation
     const sizeBoost = 1.0 + midCrossover * 0.36
 
     for (let i = 0; i < n; i++) {
       const a = alpha[i] * opacityBoost
-      if (a < 0.05) continue
+      if (a < 0.04) continue
 
       if (useRedBuckets && type[i] === 1) {
         const rb = a > 0.55 ? 1 : 0
@@ -800,7 +840,7 @@ export class ParticleEngine {
         if (count === 0) continue
 
         const list = redBuckets[rb]
-        const rAlpha = (redAlphas[rb] * redMix).toFixed(2)
+        const rAlpha = (redAlphas[rb] * redMix * mobileAttenuation).toFixed(2)
         ctx.fillStyle = `rgba(${redR},${redG},${redB},${rAlpha})`
         ctx.beginPath()
 

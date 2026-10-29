@@ -24,8 +24,8 @@
 
 .scroll-cue--light {
   color: var(--ink);
-  --cue-line-color: rgba(18, 18, 18, 0.25);
-  --cue-border-color: rgba(18, 18, 18, 0.6);
+  --cue-line-color: rgba(18, 18, 18, 0.22);
+  --cue-border-color: rgba(18, 18, 18, 0.55);
   --cue-dot-color: var(--ink);
 }
 
@@ -46,9 +46,7 @@
    Left-Aligned Variant (About section)
    ------------------------------------------------------------------------- */
 .scroll-cue--left {
-  position: absolute;
-  bottom: clamp(1.5rem, 3vh, 3rem);
-  left: clamp(1.5rem, 3.5vw, 4.5rem);
+  position: relative;
   flex-direction: row;
   align-items: center;
   gap: 16px;
@@ -60,18 +58,19 @@
 .scroll-cue__mouse {
   width: 17px;
   height: 27px;
-  border: 1.5px solid var(--cue-border-color);
+  border: 1.3px solid var(--cue-border-color);
   border-radius: 9px;
   position: relative;
   display: flex;
   justify-content: center;
   padding-top: 5px;
   transition: border-color 0.3s var(--ease-out);
+  flex-shrink: 0;
 }
 
 .scroll-cue__wheel {
-  width: 2.5px;
-  height: 4px;
+  width: 2px;
+  height: 4.5px;
   border-radius: 1.5px;
   background-color: var(--cue-dot-color);
   animation: mouseWheelMove 2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
@@ -105,7 +104,8 @@
   font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  opacity: 0.75;
+  opacity: 0.72;
+  white-space: nowrap;
 }
 
 /* -------------------------------------------------------------------------
@@ -118,10 +118,20 @@
   transition: background-color 0.3s var(--ease-out);
 }
 
+.scroll-cue__rules-horiz {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .scroll-cue__line-horiz {
-  width: clamp(40px, 5vw, 80px);
+  display: block;
+  width: clamp(48px, 5vw, 76px);
   height: 1px;
   background-color: var(--cue-line-color);
   transition: background-color 0.3s var(--ease-out);
 }
 
+.scroll-cue__line-horiz--short {
+  width: clamp(16px, 1.8vw, 24px);
+}

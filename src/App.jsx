@@ -1,13 +1,12 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import React, { useRef, useState, useCallback } from 'react'
 import { SmoothScrollProvider } from './context/SmoothScrollContext'
-import { ParticleStageProvider, useParticleStage } from './components/canvas/ParticleStage'
+import { ParticleStageProvider } from './components/canvas/ParticleStage'
 import ParticleDebugPanel from './components/canvas/ParticleDebugPanel'
 import Navbar from './components/common/Navbar'
 import SectionIndex from './components/common/SectionIndex'
-import ScrollCue from './components/common/ScrollCue'
 import Loader from './components/common/Loader'
 import Hero from './components/sections/Hero'
+import About from './components/sections/About'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
@@ -30,63 +29,12 @@ function SectionShell({ id, theme, index, children }) {
 }
 
 function PortfolioRoot() {
-  const { stage } = useParticleStage()
   const [isLoaded, setIsLoaded] = useState(false)
   const showDebug = typeof window !== 'undefined' && window.location.search.includes('debug')
 
   const handleLoaderComplete = useCallback(() => {
     setIsLoaded(true)
   }, [])
-
-  // Connect Hero -> About -> Filler scroll transitions to the Particle Stage
-  useEffect(() => {
-    const aboutEl = document.getElementById('about')
-    const fillerEl = document.getElementById('filler')
-    if (!aboutEl) return
-
-    const triggers = []
-
-    // Transition from Hero (dark, theme 0, scene 'hero') into About (paper, theme 1, scene 'pose1')
-    triggers.push(
-      ScrollTrigger.create({
-        trigger: aboutEl,
-        start: 'top 85%',
-        end: 'top 20%',
-        scrub: true,
-        onEnter: () => {
-          stage.setVisibility(1)
-          stage.setScene('pose1', { duration: 1.25, stagger: 0.55 })
-        },
-        onLeaveBack: () => {
-          stage.setVisibility(1)
-          stage.setScene('hero', { duration: 1.25, stagger: 0.55 })
-        },
-        onUpdate: (self) => {
-          stage.setTheme(self.progress)
-        },
-      })
-    )
-
-    // Fade out particle stage when entering Filler section below About
-    if (fillerEl) {
-      triggers.push(
-        ScrollTrigger.create({
-          trigger: fillerEl,
-          start: 'top 85%',
-          end: 'top 30%',
-          scrub: true,
-          onUpdate: (self) => {
-            stage.setVisibility(1 - self.progress)
-            stage.setTheme(1 - self.progress)
-          },
-        })
-      )
-    }
-
-    return () => {
-      triggers.forEach((t) => t.kill())
-    }
-  }, [stage])
 
   return (
     <>
@@ -107,10 +55,8 @@ function PortfolioRoot() {
         {/* Hero Section */}
         <Hero isLoaded={isLoaded} />
 
-        {/* 01: About Shell (built in Prompt 4) */}
-        <SectionShell id="about" theme="light" index="01">
-          <ScrollCue variant="left" />
-        </SectionShell>
+        {/* 01: About Section (Continuous Hero->About transition + Pinned 3-pose narrative) */}
+        <About />
 
         {/* 02: Filler Shell */}
         <SectionShell id="filler" theme="dark" index="02" />

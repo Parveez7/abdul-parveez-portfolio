@@ -5,18 +5,21 @@ import './ScrollCue.css'
 export default function ScrollCue({
   variant = 'centered', // 'centered' | 'left'
   label,
+  persistOnScroll = false,
   className = '',
 }) {
   const { isScrolled, activeTheme } = useSmoothScroll()
 
-  // Default labels based on variant
   const textLabel = label || (variant === 'left' ? 'SCROLL TO EXPLORE' : 'SCROLL')
+  const shouldHide = !persistOnScroll && variant === 'centered' && isScrolled
 
   return (
     <div
       className={`scroll-cue scroll-cue--${variant} ${
-        activeTheme === 'light' ? 'scroll-cue--light' : 'scroll-cue--dark'
-      } ${isScrolled ? 'scroll-cue--hidden' : ''} ${className}`}
+        activeTheme === 'light' || variant === 'left'
+          ? 'scroll-cue--light'
+          : 'scroll-cue--dark'
+      } ${shouldHide ? 'scroll-cue--hidden' : ''} ${className}`}
       aria-hidden="true"
     >
       {/* Mouse Icon */}
@@ -27,13 +30,15 @@ export default function ScrollCue({
       {/* Label Text */}
       <span className="scroll-cue__label">{textLabel}</span>
 
-      {/* Trailing vertical or horizontal accent line */}
+      {/* Trailing vertical or double-horizontal accent lines (matching reference) */}
       {variant === 'centered' ? (
         <div className="scroll-cue__line-vert" />
       ) : (
-        <div className="scroll-cue__line-horiz" />
+        <div className="scroll-cue__rules-horiz">
+          <span className="scroll-cue__line-horiz" />
+          <span className="scroll-cue__line-horiz scroll-cue__line-horiz--short" />
+        </div>
       )}
     </div>
   )
 }
-

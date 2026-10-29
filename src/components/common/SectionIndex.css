@@ -15,16 +15,12 @@
 }
 
 /* -------------------------------------------------------------------------
-   Theme Inversion
+   Theme Inversion (Continuous via --chrome-muted & --chrome-track)
    ------------------------------------------------------------------------- */
-.section-index--dark {
-  --index-color: var(--muted-on-dark);
-  --track-color: rgba(245, 242, 238, 0.15);
-}
-
+.section-index--dark,
 .section-index--light {
-  --index-color: var(--muted-on-paper);
-  --track-color: rgba(18, 18, 18, 0.15);
+  --index-color: var(--chrome-muted, var(--muted-on-dark));
+  --track-color: var(--chrome-track, rgba(245, 242, 238, 0.15));
 }
 
 .section-index__list {
