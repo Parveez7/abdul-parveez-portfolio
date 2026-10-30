@@ -9,6 +9,7 @@ export default function Navbar() {
     activeTheme,
     activeSection,
     isScrolled,
+    isChromeHidden,
   } = useSmoothScroll()
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -38,8 +39,9 @@ export default function Navbar() {
       <header
         className={`navbar ${activeTheme === 'light' ? 'navbar--light' : 'navbar--dark'} ${
           isScrolled ? 'navbar--scrolled' : ''
-        }`}
+        } ${isChromeHidden ? 'navbar--hidden' : ''}`}
         role="banner"
+        aria-hidden={isChromeHidden}
       >
         <div className="navbar__container">
           {/* Left: Brand Monogram crossfading to Full Name */}

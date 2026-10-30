@@ -3,10 +3,12 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useSmoothScroll } from '../../context/SmoothScrollContext'
 import { useParticleStage } from '../canvas/ParticleStage'
+import ScrollCue from '../common/ScrollCue'
 import {
   JOURNEY_ENTRIES,
   JOURNEY_CATEGORIES,
   YEAR_MARKERS,
+  JOURNEY_OUTRO,
   CATEGORY_META,
 } from '../../data/journey'
 import PlaceholderArt, { getRealJourneyImage } from './PlaceholderArt'
@@ -21,7 +23,7 @@ export const JOURNEY_TUNING = {
   focalLength: 1050,          // Base perspective focal length (px at 1440w)
   stepZ: 520,                 // World Z distance between consecutive cards
   focusDistZ: 660,            // Distance from camera to the d = 0 focus node
-  camOffsetX: -55,            // Camera lateral offset from spline centerline
+  camOffsetX: -55,            // Camera lateral offset from spline centerline (desktop)
   camOffsetY: -175,           // Camera elevation above the rail plane
   camYawRad: 0.145,           // Subtle rightward look angle so spline winds to upper-right
   camPitchRad: -0.055,        // Subtle horizon pitch
@@ -30,11 +32,11 @@ export const JOURNEY_TUNING = {
   dwellSpeedFactor: 0.35,     // Camera moves at 35% speed inside dwell zones
   majorWeightMultiplier: 1.3, // "major" entries receive +30% scroll length
   vhPerEntry: 85,             // Base scroll vh per entry
-  introVh: 100,               // Intro scroll buffer (vh)
-  outroVh: 80,                // Outro scroll buffer (vh)
+  introVh: 105,               // Intro scroll buffer (vh) for stroke reveal & heading
+  outroVh: 115,               // Outro scroll buffer (vh) for horizon fade & closing frame
   cameraLerp: 0.12,           // Single light damping step in the render loop
-  dustCountDesktop: 150,      // Sparse 3D dust specks around the rail
-  dustCountCompact: 70,
+  dustCountDesktop: 150,      // Sparse 3D dust specks around the rail on desktop
+  dustCountMobile: 42,        // Reduced dust specks on <900px mobile
 }
 
 /**
@@ -42,25 +44,24 @@ export const JOURNEY_TUNING = {
  * so neighbouring cards in 3D space never overlap on screen.
  */
 const CARD_PLACEMENTS = [
-  { stance: 'left', anchorXRatio: 0.66, stemHeight: 62, baseRotY: 7.5, baseRotZ: -2.0, sideSign: -1 },
-  { stance: 'right', anchorXRatio: 0.34, stemHeight: 84, baseRotY: -8.0, baseRotZ: 2.2, sideSign: 1 },
+  { stance: 'left', anchorXRatio: 0.64, stemHeight: 62, baseRotY: 7.5, baseRotZ: -2.0, sideSign: -1 },
+  { stance: 'right', anchorXRatio: 0.36, stemHeight: 84, baseRotY: -8.0, baseRotZ: 2.2, sideSign: 1 },
   { stance: 'above', anchorXRatio: 0.50, stemHeight: 102, baseRotY: -4.5, baseRotZ: -1.4, sideSign: -0.6 },
-  { stance: 'right', anchorXRatio: 0.30, stemHeight: 58, baseRotY: -8.5, baseRotZ: 2.4, sideSign: 1 },
-  { stance: 'left', anchorXRatio: 0.70, stemHeight: 88, baseRotY: 8.0, baseRotZ: -2.5, sideSign: -1 },
+  { stance: 'right', anchorXRatio: 0.32, stemHeight: 58, baseRotY: -8.5, baseRotZ: 2.4, sideSign: 1 },
+  { stance: 'left', anchorXRatio: 0.68, stemHeight: 88, baseRotY: 8.0, baseRotZ: -2.5, sideSign: -1 },
 ]
 
 /**
  * Generates deterministic 3D control points for the Catmull-Rom spline.
- * Indices run from k = -3 to N + 5 so the spline has smooth S-curves
+ * Indices run from k = -3 to N + 6 so the spline has smooth S-curves
  * from behind the camera all the way to the distant horizon.
  */
 function buildSplineControlPoints(numEntries) {
   const pts = []
   const minK = -3
-  const maxK = numEntries + 5
+  const maxK = numEntries + 6
 
   for (let k = minK; k <= maxK; k++) {
-    // S-curve lateral sway left and right + gentle vertical undulation
     const swayX = 240 * Math.sin(k * 1.18 - 0.3) + 55 * Math.cos(k * 0.52)
     const waveY = 36 * Math.cos(k * 1.05 + 0.4)
     const z = k * JOURNEY_TUNING.stepZ
@@ -72,8 +73,9 @@ function buildSplineControlPoints(numEntries) {
 
 /**
  * Evaluates a 3D point and tangent on the Catmull-Rom spline at continuous path parameter `u`.
+ * `swayScale` allows mobile (<900px) to narrow the horizontal sway into a centered vertical S-curve.
  */
-function evaluateSpline(splineData, u) {
+function evaluateSpline(splineData, u, swayScale = 1.0) {
   const { pts, minK, maxK } = splineData
   const clampedU = Math.max(minK + 1, Math.min(maxK - 2, u))
   const iFloor = Math.floor(clampedU)
@@ -94,7 +96,7 @@ function evaluateSpline(splineData, u) {
   const c2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t
   const c3 = 0.5 * t3 - 0.5 * t2
 
-  const x = c0 * p0.x + c1 * p1.x + c2 * p2.x + c3 * p3.x
+  const x = (c0 * p0.x + c1 * p1.x + c2 * p2.x + c3 * p3.x) * swayScale
   const y = c0 * p0.y + c1 * p1.y + c2 * p2.y + c3 * p3.y
   const z = c0 * p0.z + c1 * p1.z + c2 * p2.z + c3 * p3.z
 
@@ -104,7 +106,7 @@ function evaluateSpline(splineData, u) {
   const d2 = -4.5 * t2 + 4.0 * t + 0.5
   const d3 = 1.5 * t2 - t
 
-  const tx = d0 * p0.x + d1 * p1.x + d2 * p2.x + d3 * p3.x
+  const tx = (d0 * p0.x + d1 * p1.x + d2 * p2.x + d3 * p3.x) * swayScale
   const ty = d0 * p0.y + d1 * p1.y + d2 * p2.y + d3 * p3.y
   const tz = d0 * p0.z + d1 * p1.z + d2 * p2.z + d3 * p3.z
 
@@ -115,12 +117,13 @@ function evaluateSpline(splineData, u) {
  * Builds a lookup table mapping scroll progress (0..1) -> camera path position `u`
  * with explicit DWELL ZONES (+/- 0.22 around each integer card index) where the
  * camera moves at 35% speed, and major cards receive +30% scroll weight.
+ * Includes an entry lead-in (uStart = -0.65) and an outro horizon run-out (uEnd = N - 1 + 1.45).
  */
 function buildScrollToCameraLut(entries) {
   const n = entries.length
-  const uStart = -0.32
-  const uEnd = n - 1 + 0.38
-  const samples = 2400
+  const uStart = -0.65
+  const uEnd = n - 1 + 1.45
+  const samples = 2800
   const du = (uEnd - uStart) / samples
 
   const uValues = new Float32Array(samples + 1)
@@ -134,17 +137,17 @@ function buildScrollToCameraLut(entries) {
     uValues[s] = u
     cumScroll[s] = acc
 
-    // Nearest card index
     const nearestIdx = Math.max(0, Math.min(n - 1, Math.round(u)))
     const distToCard = Math.abs(u - nearestIdx)
     const entry = entries[nearestIdx]
-    const majorMult = entry?.size === 'major' ? majorWeightMultiplier : 1.0
+    const majorMult =
+      u >= -0.25 && u <= n - 0.75 && entry?.size === 'major'
+        ? majorWeightMultiplier
+        : 1.0
 
-    // Inside +/- dwellRadius of a card, speed drops to dwellSpeedFactor (35%),
-    // meaning scroll cost d(scroll)/du is 1 / dwellSpeedFactor (~2.85x higher)
     let speed = 1.0
-    if (distToCard < dwellRadius) {
-      const norm = distToCard / dwellRadius // 0 at card center, 1 at edge
+    if (u >= -0.25 && u <= n - 0.75 && distToCard < dwellRadius) {
+      const norm = distToCard / dwellRadius
       const smooth = norm * norm * (3 - 2 * norm)
       speed = dwellSpeedFactor + (1.0 - dwellSpeedFactor) * smooth
     }
@@ -153,13 +156,12 @@ function buildScrollToCameraLut(entries) {
     acc += scrollCost * du
   }
 
-  // Normalize cumulative scroll to [0, 1]
   const totalScrollCost = cumScroll[samples] || 1
   for (let s = 0; s <= samples; s++) {
     cumScroll[s] /= totalScrollCost
   }
 
-  return { uValues, cumScroll, samples }
+  return { uValues, cumScroll, samples, uStart, uEnd }
 }
 
 /**
@@ -205,18 +207,19 @@ function findScrollProgressForCard(lut, uTarget) {
  */
 function generateDustParticles(splineData, numEntries, count) {
   const specks = []
-  const uMin = -1.0
-  const uMax = numEntries + 3.2
+  const uMin = -1.2
+  const uMax = numEntries + 3.5
 
   for (let i = 0; i < count; i++) {
     const u = uMin + (i / count) * (uMax - uMin) + (Math.random() - 0.5) * 0.4
-    const center = evaluateSpline(splineData, u)
-    const spreadX = (Math.random() - 0.5) * 780
+    const center = evaluateSpline(splineData, u, 1.0)
+    const spreadX = (Math.random() - 0.5) * 760
     const spreadY = (Math.random() - 0.5) * 320 + 25
     const spreadZ = (Math.random() - 0.5) * 260
 
     specks.push({
-      x: center.x + spreadX,
+      baseX: center.x,
+      spreadX,
       y: center.y + spreadY,
       z: center.z + spreadZ,
       size: 0.8 + Math.random() * 1.35,
@@ -237,8 +240,15 @@ function smoothstep(min, max, value) {
 export default function Journey() {
   const sectionRef = useRef(null)
   const canvasRef = useRef(null)
+  const headerMainRef = useRef(null)
+  const categoryFillRef = useRef(null)
+  const bottomProgressRef = useRef(null)
+  const scrollCueWrapRef = useRef(null)
+  const outroFrameRef = useRef(null)
+  const exitCurtainRef = useRef(null)
+  const mobileChipStripRef = useRef(null)
+  const mobileChipRefs = useRef({})
   const cardRefs = useRef([])
-  const yearMarkerRefs = useRef([])
   const stRef = useRef(null)
 
   const {
@@ -246,16 +256,23 @@ export default function Journey() {
     setActiveTheme,
     setActiveSection,
     setActiveSectionIndex,
+    setIsChromeHidden,
     updateProgress,
   } = useSmoothScroll()
   const { stage: particleStage } = useParticleStage()
 
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  )
   const [activeCategory, setActiveCategory] = useState(JOURNEY_ENTRIES[0].category)
   const [focusedIndex, setFocusedIndex] = useState(0)
+  const [activeYear, setActiveYear] = useState(JOURNEY_ENTRIES[0].year)
   const [nearCameraWindow, setNearCameraWindow] = useState(0)
 
   // Debug controls state
-  const [debugCollapsed, setDebugCollapsed] = useState(false)
+  const [debugCollapsed, setDebugCollapsed] = useState(true)
   const [manualOverride, setManualOverride] = useState(false)
   const [manualU, setManualU] = useState(0)
   const [showControlPoints, setShowControlPoints] = useState(false)
@@ -263,16 +280,29 @@ export default function Journey() {
 
   // Refs synced into the GSAP ticker loop
   const stateRef = useRef({
-    targetU: -0.25,
-    currentU: -0.25,
+    targetU: -0.65,
+    currentU: -0.65,
+    scrollProgress: 0,
     isActive: false,
     manualOverride: false,
     manualU: 0,
     showControlPoints: false,
     lastFocusedIdx: 0,
+    lastYear: JOURNEY_ENTRIES[0].year,
     pulseTimer: 0,
     pulseNodeIdx: 0,
+    avgFrameMs: 16.6,
+    slowFrameStreak: 0,
+    lowPerfMode: false,
   })
+
+  // Listen for OS prefers-reduced-motion changes
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = (e) => setPrefersReducedMotion(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   useEffect(() => {
     stateRef.current.manualOverride = manualOverride
@@ -280,7 +310,17 @@ export default function Journey() {
     stateRef.current.showControlPoints = showControlPoints
   }, [manualOverride, manualU, showControlPoints])
 
-  // Precompute spline, scroll LUT, dust, and unique first-entry-per-year markers
+  // Auto-scroll active mobile category chip into horizontal view
+  useEffect(() => {
+    const stripEl = mobileChipStripRef.current
+    const chipEl = mobileChipRefs.current[activeCategory]
+    if (!stripEl || !chipEl) return
+    const targetLeft =
+      chipEl.offsetLeft - stripEl.clientWidth / 2 + chipEl.clientWidth / 2
+    stripEl.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' })
+  }, [activeCategory])
+
+  // Precompute spline, scroll LUT, and 3D dust
   const splineData = useMemo(
     () => buildSplineControlPoints(JOURNEY_ENTRIES.length),
     []
@@ -289,29 +329,15 @@ export default function Journey() {
     () => buildScrollToCameraLut(JOURNEY_ENTRIES),
     []
   )
-  const dustSpecks = useMemo(() => {
-    const count =
-      typeof window !== 'undefined' && window.innerWidth < 1024
-        ? JOURNEY_TUNING.dustCountCompact
-        : JOURNEY_TUNING.dustCountDesktop
-    return generateDustParticles(splineData, JOURNEY_ENTRIES.length, count)
-  }, [splineData])
-
-  const yearAnchors = useMemo(() => {
-    const seen = new Set()
-    const list = []
-    JOURNEY_ENTRIES.forEach((entry, index) => {
-      if (!seen.has(entry.year) && YEAR_MARKERS[entry.year]) {
-        seen.add(entry.year)
-        list.push({
-          year: entry.year,
-          label: YEAR_MARKERS[entry.year],
-          entryIndex: index,
-        })
-      }
-    })
-    return list
-  }, [])
+  const dustSpecks = useMemo(
+    () =>
+      generateDustParticles(
+        splineData,
+        JOURNEY_ENTRIES.length,
+        JOURNEY_TUNING.dustCountDesktop
+      ),
+    [splineData]
+  )
 
   // Calculate total pin scroll height in vh
   const totalPinVh = useMemo(() => {
@@ -350,13 +376,21 @@ export default function Journey() {
     )
   }, [])
 
-  // Jump to first entry of a clicked category in the left sidebar
-  const handleCategoryClick = useCallback(
-    (category) => {
-      const targetIdx = JOURNEY_ENTRIES.findIndex(
-        (e) => e.category === category
-      )
-      if (targetIdx === -1) return
+  // Jump to a specific card index (used by Category Index & keyboard card focus)
+  const scrollToCardIndex = useCallback(
+    (targetIdx, duration = 1.35) => {
+      if (targetIdx < 0 || targetIdx >= JOURNEY_ENTRIES.length) return
+
+      if (prefersReducedMotion) {
+        const cardEl = cardRefs.current[targetIdx]
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'auto', block: 'center' })
+        }
+        setFocusedIndex(targetIdx)
+        setActiveCategory(JOURNEY_ENTRIES[targetIdx].category)
+        setActiveYear(JOURNEY_ENTRIES[targetIdx].year)
+        return
+      }
 
       if (stateRef.current.manualOverride) {
         setManualU(targetIdx)
@@ -367,17 +401,104 @@ export default function Journey() {
       if (!st) return
       const normP = findScrollProgressForCard(scrollLut, targetIdx)
       const targetScrollY = st.start + normP * (st.end - st.start)
-      scrollTo(targetScrollY)
+      scrollTo(targetScrollY, {
+        duration,
+        easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+      })
     },
-    [scrollLut, scrollTo]
+    [prefersReducedMotion, scrollLut, scrollTo]
   )
 
-  const handleSkipTimeline = useCallback(() => {
-    scrollTo('#contact')
-  }, [scrollTo])
+  // Jump to first entry of a clicked category in the left sidebar or mobile strip
+  const handleCategoryClick = useCallback(
+    (category) => {
+      const targetIdx = JOURNEY_ENTRIES.findIndex(
+        (e) => e.category === category
+      )
+      if (targetIdx === -1) return
+      scrollToCardIndex(targetIdx, 1.45)
+    },
+    [scrollToCardIndex]
+  )
 
-  // Main ScrollTrigger + Canvas 2D & DOM 3D Projection Loop
+  // Skip Timeline / Continue button: 1.6s expo ease to #contact
+  const handleSkipTimeline = useCallback(() => {
+    setIsChromeHidden(false)
+    updateProgress('experience', 1)
+    scrollTo('#contact', {
+      duration: 1.6,
+      easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+    })
+  }, [scrollTo, setIsChromeHidden, updateProgress])
+
+  // Keyboard accessibility: focusing a card brings that card into 3D focus
+  const handleCardKeyboardFocus = useCallback(
+    (idx) => {
+      if (prefersReducedMotion) {
+        setFocusedIndex(idx)
+        setActiveCategory(JOURNEY_ENTRIES[idx].category)
+        setActiveYear(JOURNEY_ENTRIES[idx].year)
+        return
+      }
+      if (Math.abs(stateRef.current.currentU - idx) > 0.25) {
+        scrollToCardIndex(idx, 1.1)
+      }
+    },
+    [prefersReducedMotion, scrollToCardIndex]
+  )
+
+  // Reduced-motion scroll tracking
   useEffect(() => {
+    if (!prefersReducedMotion) return
+    const sectionEl = sectionRef.current
+    if (!sectionEl) return
+
+    const st = ScrollTrigger.create({
+      trigger: sectionEl,
+      start: 'top 60%',
+      end: 'bottom 40%',
+      onEnter: () => {
+        setActiveSection('experience')
+        setActiveSectionIndex('04')
+        setActiveTheme('dark')
+        particleStage.setVisibility(0)
+      },
+      onEnterBack: () => {
+        setActiveSection('experience')
+        setActiveSectionIndex('04')
+        setActiveTheme('dark')
+        particleStage.setVisibility(0)
+      },
+      onUpdate: (self) => {
+        updateProgress('experience', self.progress)
+        const idx = Math.min(
+          JOURNEY_ENTRIES.length - 1,
+          Math.floor(self.progress * JOURNEY_ENTRIES.length)
+        )
+        setFocusedIndex(idx)
+        setActiveCategory(JOURNEY_ENTRIES[idx].category)
+        setActiveYear(JOURNEY_ENTRIES[idx].year)
+      },
+    })
+
+    return () => {
+      st.kill()
+      setIsChromeHidden(false)
+    }
+  }, [
+    prefersReducedMotion,
+    setActiveSection,
+    setActiveSectionIndex,
+    setActiveTheme,
+    setIsChromeHidden,
+    updateProgress,
+    particleStage,
+  ])
+
+  // Main 3D ScrollTrigger + Canvas 2D & DOM Projection Loop
+  useEffect(() => {
+    if (prefersReducedMotion) return
+
     const sectionEl = sectionRef.current
     const canvasEl = canvasRef.current
     if (!sectionEl || !canvasEl) return
@@ -411,6 +532,7 @@ export default function Journey() {
         setActiveSection('experience')
         setActiveSectionIndex('04')
         setActiveTheme('dark')
+        setIsChromeHidden(true)
         particleStage.setVisibility(0)
       },
       onEnterBack: () => {
@@ -418,16 +540,26 @@ export default function Journey() {
         setActiveSection('experience')
         setActiveSectionIndex('04')
         setActiveTheme('dark')
+        setIsChromeHidden(true)
         particleStage.setVisibility(0)
       },
       onLeave: () => {
         stateRef.current.isActive = false
+        setIsChromeHidden(false)
+        updateProgress('experience', 1)
+        setActiveSection('contact')
+        setActiveSectionIndex('05')
       },
       onLeaveBack: () => {
         stateRef.current.isActive = false
+        setIsChromeHidden(false)
+        updateProgress('experience', 0)
+        setActiveSection('projects')
+        setActiveSectionIndex('03')
       },
       onUpdate: (self) => {
         const p = self.progress
+        stateRef.current.scrollProgress = p
         updateProgress('experience', p)
         stateRef.current.targetU = mapScrollProgressToU(scrollLut, p)
       },
@@ -439,48 +571,127 @@ export default function Journey() {
       const s = stateRef.current
       if (!s.isActive && !s.manualOverride) return
 
-      const dt = Math.min(0.05, (deltaTime || 16.6) / 1000)
+      const rawDtMs = deltaTime || 16.6
+      const dt = Math.min(0.05, rawDtMs / 1000)
+
+      // Auto-scale dust & blur if frame time exceeds 22ms sustained
+      s.avgFrameMs = s.avgFrameMs * 0.92 + rawDtMs * 0.08
+      if (s.avgFrameMs > 22.5) {
+        s.slowFrameStreak += 1
+        if (s.slowFrameStreak > 35 && !s.lowPerfMode) {
+          s.lowPerfMode = true
+        }
+      } else {
+        s.slowFrameStreak = Math.max(0, s.slowFrameStreak - 1)
+      }
+
+      const isMobile = vw < 900
+      const swayScale = isMobile ? 0.36 : 1.0
 
       // 1. Update camera path position u with single light damping step (lerp ~0.12)
       const desiredU = s.manualOverride ? s.manualU : s.targetU
       s.currentU += (desiredU - s.currentU) * JOURNEY_TUNING.cameraLerp
       const camU = s.currentU
+      const numEntries = JOURNEY_ENTRIES.length
+      const maxCardIdx = numEntries - 1
 
-      // Track nearest focused card & trigger subtle arrival pulse
-      const nearestIdx = Math.max(
-        0,
-        Math.min(JOURNEY_ENTRIES.length - 1, Math.round(camU))
-      )
+      // Overall normalized progress [0..1]
+      const progressNorm = s.manualOverride
+        ? Math.max(0, Math.min(1, (camU - scrollLut.uStart) / (scrollLut.uEnd - scrollLut.uStart)))
+        : s.scrollProgress
+
+      // Update vertical category line red fill & bottom edge progress line
+      if (categoryFillRef.current) {
+        categoryFillRef.current.style.transform = `scaleY(${progressNorm.toFixed(4)})`
+      }
+      if (bottomProgressRef.current) {
+        bottomProgressRef.current.style.transform = `scaleX(${progressNorm.toFixed(4)})`
+      }
+
+      // 2. Entry Heading Collapse:
+      // Fully visible at start (camU <= -0.15), collapses & fades as first card comes into focus (camU: -0.15 -> 0.55)
+      if (headerMainRef.current) {
+        const entryReveal = smoothstep(-0.68, -0.35, camU)
+        const collapseT = smoothstep(-0.12, 0.55, camU)
+        const headerAlpha = entryReveal * (1 - collapseT)
+        const headerScale = 1 - 0.09 * collapseT
+        const headerY = (1 - entryReveal) * 14 - collapseT * 12
+
+        headerMainRef.current.style.opacity = headerAlpha.toFixed(3)
+        headerMainRef.current.style.transform = `translate3d(0, ${headerY.toFixed(
+          1
+        )}px, 0) scale(${headerScale.toFixed(3)})`
+        headerMainRef.current.style.pointerEvents =
+          headerAlpha > 0.15 ? 'auto' : 'none'
+      }
+
+      // 3. Bottom-Center Scroll Cue (visible during first part only)
+      if (scrollCueWrapRef.current) {
+        const cueAlpha =
+          smoothstep(-0.62, -0.32, camU) * (1 - smoothstep(0.05, 0.65, camU))
+        scrollCueWrapRef.current.style.opacity = cueAlpha.toFixed(3)
+      }
+
+      // 4. Outro / Closing Frame ("To be continued..." + "CONTINUE ->") & Soft Exit Crossfade
+      const outroStartU = maxCardIdx + 0.32
+      const outroFullU = maxCardIdx + 0.85
+      const outroProgress = smoothstep(outroStartU, outroFullU, camU)
+      const horizonFadeOut = 1 - smoothstep(maxCardIdx + 0.45, maxCardIdx + 1.32, camU)
+
+      if (outroFrameRef.current) {
+        const outroY = (1 - outroProgress) * 18
+        outroFrameRef.current.style.opacity = outroProgress.toFixed(3)
+        outroFrameRef.current.style.transform = `translate3d(-50%, calc(-50% + ${outroY.toFixed(
+          1
+        )}px), 0)`
+        outroFrameRef.current.style.pointerEvents =
+          outroProgress > 0.45 ? 'auto' : 'none'
+      }
+
+      if (exitCurtainRef.current) {
+        const exitFade = smoothstep(0.95, 1.0, progressNorm)
+        exitCurtainRef.current.style.opacity = (exitFade * 0.65).toFixed(3)
+      }
+
+      // Track nearest focused card, active category, and active year
+      const nearestIdx = Math.max(0, Math.min(maxCardIdx, Math.round(camU)))
       if (nearestIdx !== s.lastFocusedIdx) {
         s.lastFocusedIdx = nearestIdx
         s.pulseNodeIdx = nearestIdx
         s.pulseTimer = 0
         setFocusedIndex(nearestIdx)
         setActiveCategory(JOURNEY_ENTRIES[nearestIdx].category)
+
+        const newYear = JOURNEY_ENTRIES[nearestIdx].year
+        if (newYear !== s.lastYear) {
+          s.lastYear = newYear
+          setActiveYear(newYear)
+        }
       }
-      if (Math.abs( nearestIdx - nearCameraWindow ) >= 1) {
+      if (Math.abs(nearestIdx - nearCameraWindow) >= 1) {
         setNearCameraWindow(nearestIdx)
       }
       s.pulseTimer += dt
 
-      // 2. Compute Virtual Camera Pose on the 3D Rail
-      const focusPt = evaluateSpline(splineData, camU)
-      const lookAheadPt = evaluateSpline(splineData, camU + 1.5)
+      // 5. Compute Virtual Camera Pose on the 3D Rail
+      const focusPt = evaluateSpline(splineData, camU, swayScale)
+      const lookAheadPt = evaluateSpline(splineData, camU + 1.5, swayScale)
 
-      // Camera sits behind focusPt by focusDistZ, elevated above the rail,
-      // and tracks 58% of the spline's lateral X so S-bends sweep across the screen
-      const camX = focusPt.x * 0.58 + JOURNEY_TUNING.camOffsetX
-      const camY = focusPt.y * 0.65 + JOURNEY_TUNING.camOffsetY
+      const camOffsetX = isMobile ? 0 : JOURNEY_TUNING.camOffsetX
+      const camOffsetY = isMobile ? -145 : JOURNEY_TUNING.camOffsetY
+      const camYaw = isMobile ? 0.035 : JOURNEY_TUNING.camYawRad
+      const camPitch = isMobile ? -0.045 : JOURNEY_TUNING.camPitchRad
+
+      const camX = focusPt.x * 0.58 + camOffsetX
+      const camY = focusPt.y * 0.65 + camOffsetY
       const camZ = focusPt.z - JOURNEY_TUNING.focusDistZ
 
       // Subtle camera banking roll (+/- 3 deg) proportional to lateral curvature
       const curvatureX = (lookAheadPt.tx - focusPt.tx) / JOURNEY_TUNING.stepZ
+      const maxBank = isMobile ? 1.2 : JOURNEY_TUNING.maxBankDeg
       const bankRad = Math.max(
-        (-JOURNEY_TUNING.maxBankDeg * Math.PI) / 180,
-        Math.min(
-          (JOURNEY_TUNING.maxBankDeg * Math.PI) / 180,
-          curvatureX * 0.22
-        )
+        (-maxBank * Math.PI) / 180,
+        Math.min((maxBank * Math.PI) / 180, curvatureX * 0.22)
       )
       const cosRoll = Math.cos(bankRad)
       const sinRoll = Math.sin(bankRad)
@@ -489,35 +700,35 @@ export default function Journey() {
         setDebugBankDeg(((bankRad * 180) / Math.PI).toFixed(2))
       }
 
-      const focal = JOURNEY_TUNING.focalLength * (vw / 1440)
-      const screenCenterX = vw * 0.46
-      const screenCenterY = vh * 0.56
+      const focal =
+        JOURNEY_TUNING.focalLength *
+        (isMobile ? Math.max(0.68, vw / 960) : vw / 1440)
 
-      const cosYaw = Math.cos(JOURNEY_TUNING.camYawRad)
-      const sinYaw = Math.sin(JOURNEY_TUNING.camYawRad)
-      const cosPitch = Math.cos(JOURNEY_TUNING.camPitchRad)
-      const sinPitch = Math.sin(JOURNEY_TUNING.camPitchRad)
+      // Reserve a 240px left gutter on desktop so the left Journey Index never overlaps cards
+      const leftGutterPx = isMobile ? 16 : Math.min(260, Math.max(220, vw * 0.17))
+      const screenCenterX = isMobile
+        ? vw * 0.5
+        : Math.max(leftGutterPx + 240, vw * 0.53)
+      const screenCenterY = isMobile ? vh * 0.54 : vh * 0.56
 
-      /**
-       * Projects any 3D world point (wx, wy, wz) through the virtual camera
-       * into 2D viewport coordinates (sx, sy) and perspective scale.
-       */
+      const cosYaw = Math.cos(camYaw)
+      const sinYaw = Math.sin(camYaw)
+      const cosPitch = Math.cos(camPitch)
+      const sinPitch = Math.sin(camPitch)
+
       const projectPoint = (wx, wy, wz) => {
         const dx = wx - camX
         const dy = wy - camY
         const dz = wz - camZ
 
-        // Yaw rotation (horizontal look toward upper-right horizon)
         const rx1 = dx * cosYaw - dz * sinYaw
         const rz1 = dx * sinYaw + dz * cosYaw
 
-        // Pitch rotation
         const ry2 = dy * cosPitch - rz1 * sinPitch
         const rz2 = dy * sinPitch + rz1 * cosPitch
 
         if (rz2 <= 45) return null
 
-        // Camera banking roll
         const rx3 = rx1 * cosRoll - ry2 * sinRoll
         const ry3 = rx1 * sinRoll + ry2 * cosRoll
 
@@ -530,48 +741,65 @@ export default function Journey() {
         }
       }
 
-      // 3. Clear Canvas & Draw 3D Atmospheric Dust
+      // 6. Entry Stroke Reveal & Dust Alpha
+      // As the section enters (camU: -0.65 -> -0.15), the spline draws from the bottom edge toward the horizon
+      const entryLineReveal = smoothstep(-0.65, -0.10, camU)
+      const dustGlobalAlpha = smoothstep(-0.60, -0.15, camU) * horizonFadeOut
+
       ctx.save()
       ctx.scale(dpr, dpr)
       ctx.clearRect(0, 0, vw, vh)
 
-      for (let i = 0; i < dustSpecks.length; i++) {
-        const sp = dustSpecks[i]
-        const driftX = Math.sin(time * sp.speed + sp.phase) * 14
-        const driftY = Math.cos(time * sp.speed * 0.8 + sp.phase) * 9
-        const proj = projectPoint(sp.x + driftX, sp.y + driftY, sp.z)
-        if (!proj || proj.depthZ > 3200 || proj.depthZ < 120) continue
+      // Draw 3D Atmospheric Dust
+      const activeDustLimit = isMobile
+        ? JOURNEY_TUNING.dustCountMobile
+        : s.lowPerfMode
+        ? Math.floor(dustSpecks.length * 0.5)
+        : dustSpecks.length
 
-        const distFade = smoothstep(3200, 1800, proj.depthZ) * smoothstep(120, 350, proj.depthZ)
-        const alpha = sp.alpha * distFade
-        if (alpha < 0.02) continue
+      if (dustGlobalAlpha > 0.01) {
+        for (let i = 0; i < activeDustLimit; i++) {
+          const sp = dustSpecks[i]
+          const driftX = Math.sin(time * sp.speed + sp.phase) * 14
+          const driftY = Math.cos(time * sp.speed * 0.8 + sp.phase) * 9
+          const wx = sp.baseX * swayScale + sp.spreadX * swayScale + driftX
+          const proj = projectPoint(wx, sp.y + driftY, sp.z)
+          if (!proj || proj.depthZ > 3200 || proj.depthZ < 120) continue
 
-        const radius = Math.max(0.6, Math.min(2.4, sp.size * proj.scale * 1.15))
-        ctx.fillStyle = sp.isRed
-          ? `rgba(232, 40, 60, ${(alpha * 1.15).toFixed(3)})`
-          : `rgba(245, 242, 238, ${alpha.toFixed(3)})`
-        ctx.beginPath()
-        ctx.arc(proj.sx, proj.sy, radius, 0, Math.PI * 2)
-        ctx.fill()
+          const distFade =
+            smoothstep(3200, 1800, proj.depthZ) *
+            smoothstep(120, 350, proj.depthZ)
+          const alpha = sp.alpha * distFade * dustGlobalAlpha
+          if (alpha < 0.02) continue
+
+          const radius = Math.max(
+            0.6,
+            Math.min(2.4, sp.size * proj.scale * 1.15)
+          )
+          ctx.fillStyle = sp.isRed
+            ? `rgba(232, 40, 60, ${(alpha * 1.15).toFixed(3)})`
+            : `rgba(245, 242, 238, ${alpha.toFixed(3)})`
+          ctx.beginPath()
+          ctx.arc(proj.sx, proj.sy, radius, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
 
-      // 4. Sample & Draw the Winding 3D Spline Path
-      //    - Ahead of focus (u > camU): dim warm grey hairline tapering with distance
-      //    - Behind/up to focus (u <= camU): bright warm white with subtle narrow red bloom
+      // 7. Sample & Draw the Winding 3D Spline Path with Entry Draw-In & Outro Horizon Fade
       const uMinDraw = camU - 1.18
-      const uMaxDraw = camU + 4.15
+      const maxDrawSpan = (isMobile ? 2.85 : 4.15) * (0.18 + 0.82 * entryLineReveal)
+      const uMaxDraw = camU + maxDrawSpan
       const stepU = 0.035
       const projectedCurve = []
 
       for (let u = uMinDraw; u <= uMaxDraw; u += stepU) {
-        const pt = evaluateSpline(splineData, u)
+        const pt = evaluateSpline(splineData, u, swayScale)
         const proj = projectPoint(pt.x, pt.y, pt.z)
         if (proj) {
           projectedCurve.push({ u, ...proj })
         }
       }
 
-      // Draw segments back-to-front (far to near)
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
 
@@ -581,22 +809,21 @@ export default function Journey() {
         const uMid = 0.5 * (pA.u + pB.u)
         const d = uMid - camU
 
-        // Perspective line width (~1.8px at focus depth)
         const baseWidth = Math.max(0.55, Math.min(2.6, 1.9 * pA.scale))
 
         if (d > 0) {
-          // Ahead of camera focus: dim warm grey fading into distance
-          const farFade = smoothstep(4.1, 0.2, d)
-          const alpha = 0.12 + 0.42 * farFade
-          ctx.strokeStyle = `rgba(245, 242, 238, ${alpha.toFixed(3)})`
-          ctx.lineWidth = baseWidth
-          ctx.beginPath()
-          ctx.moveTo(pA.sx, pA.sy)
-          ctx.lineTo(pB.sx, pB.sy)
-          ctx.stroke()
+          const farFade = smoothstep(maxDrawSpan, 0.2, d)
+          const alpha = (0.12 + 0.42 * farFade) * horizonFadeOut
+          if (alpha > 0.01) {
+            ctx.strokeStyle = `rgba(245, 242, 238, ${alpha.toFixed(3)})`
+            ctx.lineWidth = baseWidth
+            ctx.beginPath()
+            ctx.moveTo(pA.sx, pA.sy)
+            ctx.lineTo(pB.sx, pB.sy)
+            ctx.stroke()
+          }
         } else {
-          // Travelled path (d <= 0): subtle narrow red bloom + crisp bright warm white core
-          const nearFade = smoothstep(-1.18, -0.35, d)
+          const nearFade = smoothstep(-1.18, -0.35, d) * horizonFadeOut
           const bloomAlpha = 0.22 * nearFade
           const coreAlpha = 0.92 * nearFade
 
@@ -609,64 +836,30 @@ export default function Journey() {
             ctx.stroke()
           }
 
-          ctx.strokeStyle = `rgba(245, 242, 238, ${coreAlpha.toFixed(3)})`
-          ctx.lineWidth = baseWidth * 1.15
-          ctx.beginPath()
-          ctx.moveTo(pA.sx, pA.sy)
-          ctx.lineTo(pB.sx, pB.sy)
-          ctx.stroke()
+          if (coreAlpha > 0.01) {
+            ctx.strokeStyle = `rgba(245, 242, 238, ${coreAlpha.toFixed(3)})`
+            ctx.lineWidth = baseWidth * 1.15
+            ctx.beginPath()
+            ctx.moveTo(pA.sx, pA.sy)
+            ctx.lineTo(pB.sx, pB.sy)
+            ctx.stroke()
+          }
         }
       }
 
-      // 5. Update Year Markers in 3D Space beside the spline
-      yearAnchors.forEach((ym, ymIdx) => {
-        const markerEl = yearMarkerRefs.current[ymIdx]
-        if (!markerEl) return
-
-        const d = ym.entryIndex - camU
-        if (d > 3.2 || d < -1.05) {
-          markerEl.style.display = 'none'
-          return
-        }
-
-        const nodePt = evaluateSpline(splineData, ym.entryIndex)
-        const placement = CARD_PLACEMENTS[ym.entryIndex % CARD_PLACEMENTS.length]
-        // Place year marker opposite the card stem beside the node
-        const markerWorldX = nodePt.x - placement.sideSign * 105
-        const markerWorldY = nodePt.y - 12
-        const proj = projectPoint(markerWorldX, markerWorldY, nodePt.z)
-
-        if (!proj) {
-          markerEl.style.display = 'none'
-          return
-        }
-
-        const alpha =
-          d >= 0
-            ? smoothstep(3.1, 0.6, d)
-            : smoothstep(-1.05, -0.15, d)
-        const sc = Math.max(0.35, Math.min(1.15, proj.scale * 1.05))
-
-        markerEl.style.display = 'block'
-        markerEl.style.opacity = alpha.toFixed(3)
-        markerEl.style.transform = `translate3d(${proj.sx.toFixed(1)}px, ${proj.sy.toFixed(
-          1
-        )}px, 0) translate(-50%, -50%) scale(${sc.toFixed(3)})`
-      })
-
-      // 6. Project Each Card, Draw Node Dots & 1px Stems on Canvas, and Position DOM Cards
-      const numEntries = JOURNEY_ENTRIES.length
+      // 8. Project Each Card, Draw Node Dots & 1px Stems on Canvas, and Position DOM Cards
+      const maxVisibleAhead = isMobile ? 2.35 : 3.5
       for (let i = numEntries - 1; i >= 0; i--) {
         const cardEl = cardRefs.current[i]
         const d = i - camU
 
-        // Outside lifecycle bounds (d > 3.5 or d < -1.2): hide completely
-        if (d > 3.5 || d < -1.2) {
+        // Outside lifecycle bounds or unrevealed during entry stroke draw: hide completely
+        if (d > maxVisibleAhead || d < -1.2 || i > uMaxDraw - 0.15) {
           if (cardEl) cardEl.style.display = 'none'
           continue
         }
 
-        const nodePt = evaluateSpline(splineData, i)
+        const nodePt = evaluateSpline(splineData, i, swayScale)
         const proj = projectPoint(nodePt.x, nodePt.y, nodePt.z)
         if (!proj) {
           if (cardEl) cardEl.style.display = 'none'
@@ -674,89 +867,127 @@ export default function Journey() {
         }
 
         const placement = CARD_PLACEMENTS[i % CARD_PLACEMENTS.length]
+        const anchorXRatio = isMobile ? 0.5 : placement.anchorXRatio
 
-        // Compute Card Lifecycle Curves (Emerging -> Approach -> Focus -> Recede)
         let cardScale = 1
         let cardOpacity = 1
         let blurPx = 0
-        let rotY = placement.baseRotY
-        let rotZ = placement.baseRotZ
-        let rotX = 1.2
+        let rotY = isMobile ? placement.baseRotY * 0.35 : placement.baseRotY
+        let rotZ = isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ
+        let rotX = isMobile ? 0.8 : 1.2
         let floatOffsetY = 0
         let recedeOffsetX = 0
         let recedeOffsetY = 0
         let stemAlpha = 1
 
         if (d > 1.0) {
-          // EMERGING (d: 3.5 -> 1.0)
-          const tEmerge = smoothstep(3.5, 1.0, d) // 0 at 3.5, 1 at 1.0
-          cardScale = 0.16 + 0.42 * tEmerge
-          cardOpacity = 0.55 * tEmerge
-          // Quantized blur in 0.5px steps so browser doesn't re-rasterize every frame
-          blurPx = Math.round((1 - tEmerge) * 3.5 * 2) / 2
-          rotY = placement.baseRotY + placement.sideSign * (1 - tEmerge) * 16
-          rotZ = placement.baseRotZ * (1.4 - 0.4 * tEmerge)
+          const tEmerge = smoothstep(maxVisibleAhead, 1.0, d)
+          cardScale = isMobile
+            ? 0.24 + 0.38 * tEmerge
+            : 0.16 + 0.42 * tEmerge
+          cardOpacity = (isMobile ? 0.38 : 0.55) * tEmerge
+          blurPx =
+            isMobile || s.lowPerfMode
+              ? 0
+              : Math.round((1 - tEmerge) * 3.5 * 2) / 2
+          rotY =
+            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) +
+            placement.sideSign * (1 - tEmerge) * (isMobile ? 6 : 16)
+          rotZ =
+            (isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ) *
+            (1.4 - 0.4 * tEmerge)
           stemAlpha = tEmerge * 0.75
         } else if (d >= 0) {
-          // APPROACH & FOCUS (d: 1.0 -> 0.0)
-          const tApp = smoothstep(1.0, 0.0, d) // 0 at 1.0, 1 at 0.0
-          cardScale = 0.58 + 0.42 * tApp
-          cardOpacity = 0.55 + 0.45 * smoothstep(1.0, 0.25, d)
-          blurPx = d > 0.45 ? Math.round(((d - 0.45) / 0.55) * 1.5 * 2) / 2 : 0
-          rotY = placement.baseRotY * (1.15 - 0.15 * tApp)
-          rotZ = placement.baseRotZ
+          const tApp = smoothstep(1.0, 0.0, d)
+          cardScale = (isMobile ? 0.62 : 0.58) + (isMobile ? 0.38 : 0.42) * tApp
+          cardOpacity =
+            (isMobile ? 0.38 : 0.55) +
+            (isMobile ? 0.62 : 0.45) * smoothstep(1.0, 0.22, d)
+          blurPx =
+            isMobile || s.lowPerfMode
+              ? 0
+              : d > 0.45
+              ? Math.round(((d - 0.45) / 0.55) * 1.5 * 2) / 2
+              : 0
+          rotY =
+            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) *
+            (1.15 - 0.15 * tApp)
+          rotZ = isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ
 
-          // Subtle float at focus (+/- 3px)
           const focusWeight = smoothstep(0.35, 0.0, Math.abs(d))
           floatOffsetY = Math.sin(time * 1.7 + i) * 3.0 * focusWeight
           stemAlpha = 0.75 + 0.25 * tApp
         } else {
           // RECEDE (d: 0.0 -> -1.2)
-          // Card backs away into depth, drifts outward to its side, turns away, and fades
-          const r = smoothstep(0.0, -1.2, d) // 0 at 0.0, 1 at -1.2
+          const r = smoothstep(0.0, -1.2, d)
           cardScale = 1.0 - 0.54 * r
           cardOpacity = Math.pow(1.0 - r, 1.35)
-          blurPx = Math.round(r * 3.5 * 2) / 2
-          rotY = placement.baseRotY + placement.sideSign * r * 24
-          rotZ = placement.baseRotZ + placement.sideSign * r * 4
-          recedeOffsetX = placement.sideSign * r * 195
+          blurPx =
+            isMobile || s.lowPerfMode ? 0 : Math.round(r * 3.5 * 2) / 2
+          rotY =
+            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) +
+            placement.sideSign * r * (isMobile ? 10 : 24)
+          rotZ =
+            (isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ) +
+            placement.sideSign * r * (isMobile ? 2 : 4)
+          recedeOffsetX = placement.sideSign * r * (isMobile ? 75 : 195)
           recedeOffsetY = -r * 38
           stemAlpha = Math.max(0, 1.0 - r * 1.6)
         }
 
-        // Stem screen length
-        const stemLen = placement.stemHeight * cardScale
-        const attachX = proj.sx + recedeOffsetX
+        // Stem screen length & left-gutter guard on desktop
+        const stemLen = (isMobile ? 44 : placement.stemHeight) * cardScale
+        const approxHalfCardW =
+          (JOURNEY_ENTRIES[i].size === 'major' ? 270 : 200) * cardScale
+        const minSafeAttachX = isMobile
+          ? vw * 0.5
+          : leftGutterPx + approxHalfCardW * (2 * anchorXRatio)
+
+        const rawAttachX = isMobile
+          ? vw * 0.5 + (proj.sx - vw * 0.5) * 0.35 + recedeOffsetX
+          : Math.max(minSafeAttachX, proj.sx + recedeOffsetX)
         const attachY = proj.sy - stemLen + floatOffsetY + recedeOffsetY
 
         // Draw 1px Stem (warm grey at card bottom -> accent red at node)
         if (stemAlpha > 0.02) {
           const grad = ctx.createLinearGradient(
-            attachX,
+            rawAttachX,
             attachY,
             proj.sx,
             proj.sy
           )
-          grad.addColorStop(0, `rgba(245, 242, 238, ${(stemAlpha * 0.36).toFixed(3)})`)
-          grad.addColorStop(1, `rgba(232, 40, 60, ${(stemAlpha * 0.85).toFixed(3)})`)
+          grad.addColorStop(
+            0,
+            `rgba(245, 242, 238, ${(stemAlpha * 0.36).toFixed(3)})`
+          )
+          grad.addColorStop(
+            1,
+            `rgba(232, 40, 60, ${(stemAlpha * 0.85).toFixed(3)})`
+          )
 
           ctx.strokeStyle = grad
           ctx.lineWidth = 1
           ctx.beginPath()
-          ctx.moveTo(attachX, attachY)
+          ctx.moveTo(rawAttachX, attachY)
           ctx.lineTo(proj.sx, proj.sy)
           ctx.stroke()
         }
 
         // Draw Node Dot on the Spline (warm white core + thin red ring)
         const isFocusedNode = Math.abs(d) < 0.24
-        const nodeAlpha = d >= 0 ? smoothstep(3.5, 0.8, d) : smoothstep(-1.2, -0.2, d)
+        const nodeAlpha =
+          d >= 0
+            ? smoothstep(maxVisibleAhead, 0.8, d)
+            : smoothstep(-1.2, -0.2, d)
 
         if (nodeAlpha > 0.02) {
-          const ringRadius = (isFocusedNode ? 7.5 : 5.2) * Math.min(1.2, Math.max(0.55, cardScale))
-          const coreRadius = (isFocusedNode ? 3.2 : 2.2) * Math.min(1.2, Math.max(0.55, cardScale))
+          const ringRadius =
+            (isFocusedNode ? 7.5 : 5.2) *
+            Math.min(1.2, Math.max(0.55, cardScale))
+          const coreRadius =
+            (isFocusedNode ? 3.2 : 2.2) *
+            Math.min(1.2, Math.max(0.55, cardScale))
 
-          // Gentle arrival pulse ring on the focused node
           if (s.pulseNodeIdx === i && s.pulseTimer < 1.15) {
             const pNorm = s.pulseTimer / 1.15
             const pulseR = ringRadius + pNorm * 16
@@ -768,16 +999,16 @@ export default function Journey() {
             ctx.stroke()
           }
 
-          // Outer thin crimson ring
           ctx.fillStyle = `rgba(20, 20, 22, ${(nodeAlpha * 0.9).toFixed(3)})`
-          ctx.strokeStyle = `rgba(232, 40, 60, ${(nodeAlpha * (isFocusedNode ? 0.95 : 0.65)).toFixed(3)})`
+          ctx.strokeStyle = `rgba(232, 40, 60, ${(
+            nodeAlpha * (isFocusedNode ? 0.95 : 0.65)
+          ).toFixed(3)})`
           ctx.lineWidth = isFocusedNode ? 1.6 : 1.1
           ctx.beginPath()
           ctx.arc(proj.sx, proj.sy, ringRadius, 0, Math.PI * 2)
           ctx.fill()
           ctx.stroke()
 
-          // Inner warm white dot
           ctx.fillStyle = `rgba(245, 242, 238, ${nodeAlpha.toFixed(3)})`
           ctx.beginPath()
           ctx.arc(proj.sx, proj.sy, coreRadius, 0, Math.PI * 2)
@@ -789,19 +1020,21 @@ export default function Journey() {
           cardEl.style.display = 'flex'
           cardEl.style.opacity = cardOpacity.toFixed(3)
           cardEl.style.zIndex = String(Math.round(1000 - d * 100))
-          cardEl.style.transformOrigin = `${placement.anchorXRatio * 100}% 100%`
+          cardEl.style.transformOrigin = `${anchorXRatio * 100}% 100%`
           cardEl.style.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none'
           cardEl.style.pointerEvents = Math.abs(d) < 0.65 ? 'auto' : 'none'
 
           cardEl.style.transform =
-            `translate3d(${attachX.toFixed(1)}px, ${attachY.toFixed(1)}px, 0) ` +
-            `translate(${(-placement.anchorXRatio * 100).toFixed(1)}%, -100%) ` +
+            `translate3d(${rawAttachX.toFixed(1)}px, ${attachY.toFixed(1)}px, 0) ` +
+            `translate(${(-anchorXRatio * 100).toFixed(1)}%, -100%) ` +
             `scale(${cardScale.toFixed(3)}) ` +
-            `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) rotateZ(${rotZ.toFixed(2)}deg)`
+            `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(
+              2
+            )}deg) rotateZ(${rotZ.toFixed(2)}deg)`
         }
       }
 
-      // 7. Optional Debug Overlay: Render 3D Catmull-Rom Control Points & Cage
+      // 9. Optional Debug Overlay: Render 3D Catmull-Rom Control Points & Cage
       if (s.showControlPoints) {
         const { pts } = splineData
         ctx.strokeStyle = 'rgba(232, 40, 60, 0.35)'
@@ -812,7 +1045,7 @@ export default function Journey() {
 
         for (let k = 0; k < pts.length; k++) {
           const cp = pts[k]
-          const proj = projectPoint(cp.x, cp.y, cp.z)
+          const proj = projectPoint(cp.x * swayScale, cp.y, cp.z)
           if (!proj || proj.depthZ > 4500) continue
           if (!started) {
             ctx.moveTo(proj.sx, proj.sy)
@@ -826,7 +1059,7 @@ export default function Journey() {
 
         for (let k = 0; k < pts.length; k++) {
           const cp = pts[k]
-          const proj = projectPoint(cp.x, cp.y, cp.z)
+          const proj = projectPoint(cp.x * swayScale, cp.y, cp.z)
           if (!proj || proj.depthZ > 4500) continue
 
           ctx.fillStyle = '#E8283C'
@@ -837,7 +1070,9 @@ export default function Journey() {
           ctx.fillStyle = '#F5F2EE'
           ctx.font = '10px Inter, sans-serif'
           ctx.fillText(
-            `CP[${cp.k}] (${Math.round(cp.x)}, ${Math.round(cp.y)}, ${Math.round(cp.z)})`,
+            `CP[${cp.k}] (${Math.round(cp.x)}, ${Math.round(cp.y)}, ${Math.round(
+              cp.z
+            )})`,
             proj.sx + 7,
             proj.sy - 5
           )
@@ -853,49 +1088,84 @@ export default function Journey() {
       window.removeEventListener('resize', updateCanvasSize)
       gsap.ticker.remove(renderFrame)
       st.kill()
+      setIsChromeHidden(false)
     }
   }, [
+    prefersReducedMotion,
     splineData,
     scrollLut,
     dustSpecks,
-    yearAnchors,
     totalPinVh,
     nearCameraWindow,
     setActiveSection,
     setActiveSectionIndex,
     setActiveTheme,
+    setIsChromeHidden,
     updateProgress,
     particleStage,
   ])
+
+  const focusedEntry = JOURNEY_ENTRIES[focusedIndex] || JOURNEY_ENTRIES[0]
 
   return (
     <section
       ref={sectionRef}
       id="experience"
       data-theme="dark"
-      className="journey-section"
+      className={`journey-section ${
+        prefersReducedMotion ? 'journey-section--reduced-motion' : ''
+      }`}
       aria-label="04 The Journey Timeline"
     >
+      {/* Anchor alias so #achievements links also resolve here */}
+      <span id="achievements" className="journey-section__anchor" aria-hidden="true" />
+
+      {/* Visually Hidden Polite Live Region for Screen Readers */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {`Journey category: ${activeCategory}, Year ${activeYear}. Milestone ${
+          focusedIndex + 1
+        } of ${JOURNEY_ENTRIES.length}: ${focusedEntry.title}`}
+      </div>
+
       {/* 1. Matte Backdrop Vignette & Subtle Film Grain */}
       <div className="journey-section__vignette" aria-hidden="true" />
       <div className="journey-section__grain" aria-hidden="true" />
 
       {/* 2. Canvas 2D Layer: 3D Projected Spline, Travelled Line, Nodes, Stems & Dust */}
-      <canvas
-        ref={canvasRef}
-        className="journey-section__canvas"
-        aria-hidden="true"
-      />
+      {!prefersReducedMotion && (
+        <canvas
+          ref={canvasRef}
+          className="journey-section__canvas"
+          aria-hidden="true"
+        />
+      )}
 
-      {/* 3. Fixed Editorial HUD: Top-Left Masthead, Left Category Track, Skip Button */}
+      {/* 3. Fixed Editorial HUD: Skip Button (First Focusable Element!), Top-Left Masthead, Category Index, Year Marker */}
       <div className="journey-section__hud">
+        {/* Top-Right Skip Timeline Pill — First Focusable Element in the Section */}
+        <button
+          type="button"
+          onClick={handleSkipTimeline}
+          className="journey-section__skip-btn"
+        >
+          <span>SKIP TIMELINE</span>
+          <span className="journey-section__skip-arrow" aria-hidden="true">
+            →
+          </span>
+        </button>
+
+        {/* Top-Left Masthead ("04 | JOURNEY" stays visible; large "THE Journey" collapses after first card) */}
         <header className="journey-section__header">
           <div className="journey-section__eyebrow">
             <span className="journey-section__eyebrow-num">04</span>
             <span className="journey-section__eyebrow-sep" aria-hidden="true" />
             <span>JOURNEY</span>
           </div>
-          <div className="journey-section__title-row">
+
+          <div
+            ref={headerMainRef}
+            className="journey-section__title-row"
+          >
             <h2 className="journey-section__title">
               <span className="journey-section__title-the">THE</span>
               <span className="journey-section__title-journey">Journey</span>
@@ -907,9 +1177,17 @@ export default function Journey() {
           </div>
         </header>
 
-        {/* Left Category Navigation Track */}
-        <nav className="journey-categories" aria-label="Journey Categories">
-          <div className="journey-categories__line" aria-hidden="true" />
+        {/* Desktop Left Category Navigation Track (>= 900px) */}
+        <nav
+          className="journey-categories"
+          aria-label="Journey Categories"
+        >
+          <div className="journey-categories__line" aria-hidden="true">
+            <div
+              ref={categoryFillRef}
+              className="journey-categories__line-fill"
+            />
+          </div>
           {JOURNEY_CATEGORIES.map((category) => {
             const meta = CATEGORY_META[category]
             const isActive = activeCategory === category
@@ -921,6 +1199,7 @@ export default function Journey() {
                 className={`journey-categories__item ${
                   isActive ? 'journey-categories__item--active' : ''
                 }`}
+                aria-current={isActive ? 'true' : undefined}
               >
                 <span className="journey-categories__node" aria-hidden="true">
                   <span className="journey-categories__node-dot" />
@@ -938,141 +1217,238 @@ export default function Journey() {
           })}
         </nav>
 
-        {/* Top-Right Skip Timeline Pill */}
+        {/* Bottom-Left Year Marker ("2022 / THE BEGINNING") — Cross-fades with 500ms rise & fade */}
+        {!prefersReducedMotion && (
+          <div
+            className="journey-year-hud"
+            aria-hidden="true"
+          >
+            <div key={activeYear} className="journey-year-hud__inner">
+              <span className="journey-year-hud__year">{activeYear}</span>
+              <span className="journey-year-hud__tagline">
+                {YEAR_MARKERS[activeYear] || ''}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile (< 900px) Compact Horizontal Category Chip Strip */}
+        <nav
+          ref={mobileChipStripRef}
+          className="journey-mobile-chips"
+          aria-label="Journey Categories Mobile"
+        >
+          {JOURNEY_CATEGORIES.map((category) => {
+            const isActive = activeCategory === category
+            return (
+              <button
+                key={category}
+                ref={(el) => (mobileChipRefs.current[category] = el)}
+                type="button"
+                onClick={() => handleCategoryClick(category)}
+                className={`journey-mobile-chips__btn ${
+                  isActive ? 'journey-mobile-chips__btn--active' : ''
+                }`}
+                aria-current={isActive ? 'true' : undefined}
+              >
+                <span className="journey-mobile-chips__dot" aria-hidden="true" />
+                <span>{category}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        {/* Bottom-Center Mouse Scroll Cue (First Part Only) */}
+        {!prefersReducedMotion && (
+          <div
+            ref={scrollCueWrapRef}
+            className="journey-section__scroll-cue"
+          >
+            <ScrollCue variant="centered" persistOnScroll={true} />
+          </div>
+        )}
+
+        {/* Very Thin Bottom-Edge Progress Line (0..1) */}
+        {!prefersReducedMotion && (
+          <div className="journey-section__bottom-progress" aria-hidden="true">
+            <div
+              ref={bottomProgressRef}
+              className="journey-section__bottom-progress-fill"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 4. Ordered List (<ol>) of 14 Chronological Milestone Cards */}
+      <div className="journey-section__stage-wrap">
+        {prefersReducedMotion && (
+          <svg
+            className="journey-reduced-svg-line"
+            viewBox="0 0 120 1400"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M60,0 C105,180 15,360 60,540 C105,720 15,900 60,1080 C95,1220 35,1320 60,1400"
+              fill="none"
+              stroke="rgba(232, 40, 60, 0.45)"
+              strokeWidth="1.5"
+            />
+          </svg>
+        )}
+
+        <ol className="journey-section__stage">
+          {JOURNEY_ENTRIES.map((entry, idx) => {
+            const placement = CARD_PLACEMENTS[idx % CARD_PLACEMENTS.length]
+            const isFocused = focusedIndex === idx
+            const isNearCamera =
+              prefersReducedMotion || Math.abs(idx - nearCameraWindow) <= 3
+            const catNum = `No. ${String(idx + 1).padStart(2, '0')}`
+
+            return (
+              <li
+                key={entry.id}
+                ref={(el) => (cardRefs.current[idx] = el)}
+                className={`journey-card-item journey-card--${entry.size} ${
+                  isFocused ? 'journey-card--focused' : ''
+                }`}
+              >
+                <article
+                  tabIndex={0}
+                  onFocus={() => handleCardKeyboardFocus(idx)}
+                  className="journey-card__article"
+                  aria-label={`${entry.year} ${entry.title} (${entry.category})`}
+                >
+                  {/* Left / Top Image or Certificate Tile */}
+                  <PlaceholderArt entry={entry} isNearCamera={isNearCamera} />
+
+                  {/* Right / Bottom Editorial Catalogue Copy */}
+                  <div className="journey-card__body">
+                    <div
+                      className="journey-card__focus-tick"
+                      aria-hidden="true"
+                    />
+                    <div className="journey-card__meta-row">
+                      <span className="journey-card__cat-num">{catNum}</span>
+                      <span className="journey-card__year">{entry.year}</span>
+                    </div>
+                    <h3 className="journey-card__title">{entry.title}</h3>
+                    <p className="journey-card__desc">{entry.description}</p>
+                    <div className="journey-card__category-tag">
+                      <span
+                        className="journey-card__category-rule"
+                        aria-hidden="true"
+                      />
+                      <span>{entry.category}</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom stem attachment dot */}
+                  {!prefersReducedMotion && (
+                    <span
+                      className="journey-card__stem-anchor"
+                      style={{ left: `${placement.anchorXRatio * 100}%` }}
+                      aria-hidden="true"
+                    />
+                  )}
+                </article>
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+
+      {/* 5. Closing / Outro Frame ("To be continued..." + "CONTINUE ->") */}
+      <div
+        ref={outroFrameRef}
+        className={`journey-outro ${
+          prefersReducedMotion ? 'journey-outro--static' : ''
+        }`}
+      >
+        <span className="journey-outro__eyebrow">{JOURNEY_OUTRO.eyebrow}</span>
+        <p className="journey-outro__text">{JOURNEY_OUTRO.closingLine}</p>
         <button
           type="button"
           onClick={handleSkipTimeline}
-          className="journey-section__skip-btn"
+          className="journey-outro__btn"
         >
-          <span>SKIP TIMELINE</span>
-          <span className="journey-section__skip-arrow" aria-hidden="true">
+          <span>{JOURNEY_OUTRO.ctaLabel}</span>
+          <span className="journey-outro__arrow" aria-hidden="true">
             →
           </span>
         </button>
       </div>
 
-      {/* 4. 3D Projected DOM Stage: Year Markers & Matte Editorial Cards */}
-      <div className="journey-section__stage">
-        {/* Year Markers ("2022 / THE BEGINNING") */}
-        {yearAnchors.map((ym, ymIdx) => (
-          <div
-            key={ym.year}
-            ref={(el) => (yearMarkerRefs.current[ymIdx] = el)}
-            className="journey-year-marker"
-            aria-hidden="true"
-          >
-            <span className="journey-year-marker__year">{ym.year}</span>
-            <span className="journey-year-marker__label">{ym.label}</span>
-          </div>
-        ))}
+      {/* Soft Dark Exit Crossfade Curtain */}
+      {!prefersReducedMotion && (
+        <div
+          ref={exitCurtainRef}
+          className="journey-section__exit-curtain"
+          aria-hidden="true"
+        />
+      )}
 
-        {/* 14 Milestone Cards */}
-        {JOURNEY_ENTRIES.map((entry, idx) => {
-          const placement = CARD_PLACEMENTS[idx % CARD_PLACEMENTS.length]
-          const isFocused = focusedIndex === idx
-          const isNearCamera = Math.abs(idx - nearCameraWindow) <= 3
-          const catNum = `No. ${String(idx + 1).padStart(2, '0')}`
-
-          return (
-            <article
-              key={entry.id}
-              ref={(el) => (cardRefs.current[idx] = el)}
-              className={`journey-card journey-card--${entry.size} ${
-                isFocused ? 'journey-card--focused' : ''
-              }`}
-              aria-label={`${entry.year} ${entry.title} (${entry.category})`}
+      {/* 6. Temporary Debug Slider & Control Point Toggle */}
+      {!prefersReducedMotion && (
+        <aside className="journey-debug" aria-label="Journey Camera Debug">
+          <div className="journey-debug__header">
+            <span className="journey-debug__title">RAIL CAMERA DEBUG</span>
+            <button
+              type="button"
+              className="journey-debug__toggle-btn"
+              onClick={() => setDebugCollapsed((prev) => !prev)}
             >
-              {/* Left Image / Certificate Tile (~38%) */}
-              <PlaceholderArt entry={entry} isNearCamera={isNearCamera} />
+              {debugCollapsed ? 'Expand' : 'Hide'}
+            </button>
+          </div>
 
-              {/* Right Editorial Catalogue Copy */}
-              <div className="journey-card__body">
-                <div className="journey-card__focus-tick" aria-hidden="true" />
-                <div className="journey-card__meta-row">
-                  <span className="journey-card__cat-num">{catNum}</span>
-                  <span className="journey-card__year">{entry.year}</span>
-                </div>
-                <h3 className="journey-card__title">{entry.title}</h3>
-                <p className="journey-card__desc">{entry.description}</p>
-                <div className="journey-card__category-tag">
-                  <span
-                    className="journey-card__category-rule"
-                    aria-hidden="true"
-                  />
-                  <span>{entry.category}</span>
-                </div>
+          {!debugCollapsed && (
+            <>
+              <label className="journey-debug__row">
+                <span>Manual Camera Slider</span>
+                <input
+                  type="checkbox"
+                  checked={manualOverride}
+                  onChange={(e) => {
+                    setManualOverride(e.target.checked)
+                    if (e.target.checked) {
+                      setManualU(Number(stateRef.current.currentU.toFixed(2)))
+                    }
+                  }}
+                />
+              </label>
+
+              <input
+                type="range"
+                min="-0.65"
+                max={JOURNEY_ENTRIES.length + 0.4}
+                step="0.01"
+                value={manualOverride ? manualU : focusedIndex}
+                disabled={!manualOverride}
+                onChange={(e) => setManualU(parseFloat(e.target.value))}
+                className="journey-debug__slider"
+              />
+
+              <label className="journey-debug__row">
+                <span>Show 3D Control Points</span>
+                <input
+                  type="checkbox"
+                  checked={showControlPoints}
+                  onChange={(e) => setShowControlPoints(e.target.checked)}
+                />
+              </label>
+
+              <div className="journey-debug__meta">
+                <span>
+                  Card: #{String(focusedIndex + 1).padStart(2, '0')} (
+                  {JOURNEY_ENTRIES[focusedIndex]?.id})
+                </span>
+                <span>Bank: {debugBankDeg}°</span>
               </div>
-
-              {/* Bottom stem attachment dot */}
-              <span
-                className="journey-card__stem-anchor"
-                style={{ left: `${placement.anchorXRatio * 100}%` }}
-                aria-hidden="true"
-              />
-            </article>
-          )
-        })}
-      </div>
-
-      {/* 5. Temporary Debug Slider & Control Point Toggle */}
-      <aside className="journey-debug" aria-label="Journey Camera Debug">
-        <div className="journey-debug__header">
-          <span className="journey-debug__title">RAIL CAMERA DEBUG</span>
-          <button
-            type="button"
-            className="journey-debug__toggle-btn"
-            onClick={() => setDebugCollapsed((prev) => !prev)}
-          >
-            {debugCollapsed ? 'Expand' : 'Hide'}
-          </button>
-        </div>
-
-        {!debugCollapsed && (
-          <>
-            <label className="journey-debug__row">
-              <span>Manual Camera Slider</span>
-              <input
-                type="checkbox"
-                checked={manualOverride}
-                onChange={(e) => {
-                  setManualOverride(e.target.checked)
-                  if (e.target.checked) {
-                    setManualU( Number(stateRef.current.currentU.toFixed(2)) )
-                  }
-                }}
-              />
-            </label>
-
-            <input
-              type="range"
-              min="-0.35"
-              max={JOURNEY_ENTRIES.length - 0.6}
-              step="0.01"
-              value={manualOverride ? manualU : focusedIndex}
-              disabled={!manualOverride}
-              onChange={(e) => setManualU(parseFloat(e.target.value))}
-              className="journey-debug__slider"
-            />
-
-            <label className="journey-debug__row">
-              <span>Show 3D Control Points</span>
-              <input
-                type="checkbox"
-                checked={showControlPoints}
-                onChange={(e) => setShowControlPoints(e.target.checked)}
-              />
-            </label>
-
-            <div className="journey-debug__meta">
-              <span>
-                Card: #{String(focusedIndex + 1).padStart(2, '0')} (
-                {JOURNEY_ENTRIES[focusedIndex]?.id})
-              </span>
-              <span>Bank: {debugBankDeg}°</span>
-            </div>
-          </>
-        )}
-      </aside>
+            </>
+          )}
+        </aside>
+      )}
     </section>
   )
 }

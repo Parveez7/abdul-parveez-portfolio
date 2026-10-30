@@ -14,7 +14,7 @@ export const SITE = {
     { id: 'about', label: 'ABOUT', href: '#about' },
     { id: 'projects', label: 'PROJECTS', href: '#projects' },
     { id: 'experience', label: 'EXPERIENCE', href: '#experience' },
-    { id: 'achievements', label: 'ACHIEVEMENTS', href: '#achievements' },
+    { id: 'achievements', label: 'ACHIEVEMENTS', href: '#experience' },
     { id: 'contact', label: 'CONTACT', href: '#contact' },
   ],
 
@@ -34,4 +34,3 @@ export const SITE = {
     { label: 'Email', href: 'mailto:contact@abdulparvez.in' },
   ],
 }
-

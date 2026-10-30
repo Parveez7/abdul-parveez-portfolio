@@ -8,13 +8,14 @@ export default function SectionIndex() {
     activeSection,
     activeSectionIndex,
     activeTheme,
+    isChromeHidden,
     scrollTo,
     subscribeProgress,
   } = useSmoothScroll()
 
   // References to line segment progress fills for 01..05
   const segmentRefs = useRef([])
-  const isHeroSection = activeSection === 'hero'
+  const isHidden = activeSection === 'hero' || isChromeHidden
 
   useEffect(() => {
     const unsubs = []
@@ -44,13 +45,15 @@ export default function SectionIndex() {
     <aside
       className={`section-index ${
         activeTheme === 'light' ? 'section-index--light' : 'section-index--dark'
-      } ${isHeroSection ? 'section-index--hidden' : ''}`}
+      } ${isHidden ? 'section-index--hidden' : ''}`}
       aria-label="Section Index"
-      aria-hidden={isHeroSection}
+      aria-hidden={isHidden}
     >
       <nav className="section-index__list">
         {SITE.sectionIndex.map((item, idx) => {
           const isActive = activeSectionIndex === item.index
+          const isCompleted =
+            parseInt(item.index, 10) < parseInt(activeSectionIndex, 10)
           const isLast = idx === SITE.sectionIndex.length - 1
 
           return (
@@ -58,8 +61,12 @@ export default function SectionIndex() {
               <button
                 type="button"
                 onClick={(e) => handleClick(e, item.id)}
-                className={`section-index__btn ${isActive ? 'section-index__btn--active' : ''}`}
-                aria-label={`Jump to ${item.index} ${item.label}`}
+                className={`section-index__btn ${
+                  isActive ? 'section-index__btn--active' : ''
+                } ${isCompleted ? 'section-index__btn--completed' : ''}`}
+                aria-label={`Jump to ${item.index} ${item.label}${
+                  isCompleted ? ' (completed)' : ''
+                }`}
                 aria-current={isActive ? 'step' : undefined}
               >
                 <span className="section-index__num">{item.index}</span>

@@ -67,6 +67,11 @@
   font-weight: 700;
 }
 
+.section-index__btn--completed .section-index__num {
+  color: var(--chrome-fg, var(--text-light));
+  opacity: 0.88;
+}
+
 /* -------------------------------------------------------------------------
    Line Segments & Scroll Fill
    ------------------------------------------------------------------------- */

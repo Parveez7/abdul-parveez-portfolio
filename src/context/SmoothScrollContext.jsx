@@ -14,6 +14,7 @@ export function SmoothScrollProvider({ children }) {
   const [activeSection, setActiveSection] = useState('hero') // 'hero' | 'about' | 'filler' | ...
   const [activeSectionIndex, setActiveSectionIndex] = useState('01') // '01'..'05'
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isChromeHidden, setIsChromeHidden] = useState(false)
   const isScrolledRef = useRef(false)
 
   // Lightweight progress store (sectionId -> 0..1), avoiding React re-renders every frame
@@ -168,6 +169,8 @@ export function SmoothScrollProvider({ children }) {
         activeSectionIndex,
         setActiveSectionIndex,
         isScrolled,
+        isChromeHidden,
+        setIsChromeHidden,
         subscribeProgress,
         updateProgress,
       }}

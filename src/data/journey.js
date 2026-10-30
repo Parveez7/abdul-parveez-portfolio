@@ -37,6 +37,16 @@ export const YEAR_MARKERS = {
 }
 
 /**
+ * Closing / Outro frame copy displayed after the final milestone recedes.
+ */
+export const JOURNEY_OUTRO = {
+  eyebrow: 'CHAPTER 04 — COMPLETE',
+  closingLine: 'To be continued...',
+  ctaLabel: 'CONTINUE',
+  placeholder: true,
+}
+
+/**
  * 14 chronological entries (2022 -> 2026)
  * 5 "major" entries, 9 "minor" entries; 3 certificates, 11 photos.
  */
@@ -246,3 +256,4 @@ export const CATEGORY_META = JOURNEY_CATEGORIES.reduce((acc, category) => {
   }
   return acc
 }, {})
+

@@ -7,8 +7,23 @@
   z-index: var(--z-nav);
   display: flex;
   align-items: center;
-  transition: color 0.3s var(--ease-out), background-color 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+  transition:
+    transform 0.45s var(--ease-out),
+    opacity 0.35s var(--ease-out),
+    color 0.3s var(--ease-out),
+    background-color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out);
   pointer-events: none; /* allow clicks through empty navbar area */
+}
+
+.navbar--hidden {
+  transform: translate3d(0, -105%, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.navbar--hidden .navbar__container {
+  pointer-events: none;
 }
 
 .navbar__container {
