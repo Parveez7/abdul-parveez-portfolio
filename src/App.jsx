@@ -8,6 +8,7 @@ import Loader from './components/common/Loader'
 import Hero from './components/sections/Hero'
 import About from './components/sections/About'
 import Filler from './components/sections/Filler'
+import Featured from './components/sections/Featured'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
@@ -62,8 +63,8 @@ function PortfolioRoot() {
         {/* 02: Pinned Philosophy / Filler Section ("Jack of all trades...") */}
         <Filler />
 
-        {/* 03: Projects Shell */}
-        <SectionShell id="projects" theme="dark" index="03" />
+        {/* 03: Featured Work (Apple-style frosted glass cards: Projects, Experience, Exchange) */}
+        <Featured />
 
         {/* 04: Experience & Achievements Shell */}
         <SectionShell id="experience" theme="dark" index="04" />
