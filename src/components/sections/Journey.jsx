@@ -23,8 +23,8 @@ export const JOURNEY_TUNING = {
   focalLength: 1050,          // Base perspective focal length (px at 1440w)
   stepZ: 520,                 // World Z distance between consecutive cards
   focusDistZ: 660,            // Distance from camera to the d = 0 focus node
-  camOffsetX: -55,            // Camera lateral offset from spline centerline (desktop)
-  camOffsetY: -175,           // Camera elevation above the rail plane
+  camOffsetX: -45,            // Camera lateral offset from spline centerline (desktop)
+  camOffsetY: -95,            // Camera elevation: places cards directly in the middle-upper viewport
   camYawRad: 0.145,           // Subtle rightward look angle so spline winds to upper-right
   camPitchRad: -0.055,        // Subtle horizon pitch
   maxBankDeg: 3.0,            // Max camera banking roll (+/- 3deg) along S-curves
@@ -44,11 +44,11 @@ export const JOURNEY_TUNING = {
  * so neighbouring cards in 3D space never overlap on screen.
  */
 const CARD_PLACEMENTS = [
-  { stance: 'left', anchorXRatio: 0.64, stemHeight: 62, baseRotY: 7.5, baseRotZ: -2.0, sideSign: -1 },
-  { stance: 'right', anchorXRatio: 0.36, stemHeight: 84, baseRotY: -8.0, baseRotZ: 2.2, sideSign: 1 },
-  { stance: 'above', anchorXRatio: 0.50, stemHeight: 102, baseRotY: -4.5, baseRotZ: -1.4, sideSign: -0.6 },
-  { stance: 'right', anchorXRatio: 0.32, stemHeight: 58, baseRotY: -8.5, baseRotZ: 2.4, sideSign: 1 },
-  { stance: 'left', anchorXRatio: 0.68, stemHeight: 88, baseRotY: 8.0, baseRotZ: -2.5, sideSign: -1 },
+  { stance: 'left', anchorXRatio: 0.64, stemHeight: 60, baseRotY: 7.0, baseRotZ: -1.8, sideSign: -1 },
+  { stance: 'right', anchorXRatio: 0.36, stemHeight: 76, baseRotY: -7.5, baseRotZ: 2.0, sideSign: 1 },
+  { stance: 'above', anchorXRatio: 0.50, stemHeight: 88, baseRotY: -4.0, baseRotZ: -1.2, sideSign: -0.6 },
+  { stance: 'right', anchorXRatio: 0.32, stemHeight: 56, baseRotY: -8.0, baseRotZ: 2.2, sideSign: 1 },
+  { stance: 'left', anchorXRatio: 0.68, stemHeight: 80, baseRotY: 7.5, baseRotZ: -2.2, sideSign: -1 },
 ]
 
 /**
@@ -271,22 +271,12 @@ export default function Journey() {
   const [activeYear, setActiveYear] = useState(JOURNEY_ENTRIES[0].year)
   const [nearCameraWindow, setNearCameraWindow] = useState(0)
 
-  // Debug controls state
-  const [debugCollapsed, setDebugCollapsed] = useState(true)
-  const [manualOverride, setManualOverride] = useState(false)
-  const [manualU, setManualU] = useState(0)
-  const [showControlPoints, setShowControlPoints] = useState(false)
-  const [debugBankDeg, setDebugBankDeg] = useState('0.0')
-
   // Refs synced into the GSAP ticker loop
   const stateRef = useRef({
     targetU: -0.65,
     currentU: -0.65,
     scrollProgress: 0,
     isActive: false,
-    manualOverride: false,
-    manualU: 0,
-    showControlPoints: false,
     lastFocusedIdx: 0,
     lastYear: JOURNEY_ENTRIES[0].year,
     pulseTimer: 0,
@@ -303,12 +293,6 @@ export default function Journey() {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
-
-  useEffect(() => {
-    stateRef.current.manualOverride = manualOverride
-    stateRef.current.manualU = manualU
-    stateRef.current.showControlPoints = showControlPoints
-  }, [manualOverride, manualU, showControlPoints])
 
   // Auto-scroll active mobile category chip into horizontal view
   useEffect(() => {
@@ -376,6 +360,17 @@ export default function Journey() {
     )
   }, [])
 
+  // Ensure all cards are hidden initially before scroll / projection runs
+  useEffect(() => {
+    if (prefersReducedMotion) return
+    cardRefs.current.forEach((cardEl) => {
+      if (cardEl) {
+        cardEl.style.display = 'none'
+        cardEl.style.opacity = '0'
+      }
+    })
+  }, [prefersReducedMotion])
+
   // Jump to a specific card index (used by Category Index & keyboard card focus)
   const scrollToCardIndex = useCallback(
     (targetIdx, duration = 1.35) => {
@@ -389,11 +384,6 @@ export default function Journey() {
         setFocusedIndex(targetIdx)
         setActiveCategory(JOURNEY_ENTRIES[targetIdx].category)
         setActiveYear(JOURNEY_ENTRIES[targetIdx].year)
-        return
-      }
-
-      if (stateRef.current.manualOverride) {
-        setManualU(targetIdx)
         return
       }
 
@@ -569,7 +559,7 @@ export default function Journey() {
     // Render frame function synced to gsap.ticker
     const renderFrame = (time, deltaTime) => {
       const s = stateRef.current
-      if (!s.isActive && !s.manualOverride) return
+      if (!s.isActive) return
 
       const rawDtMs = deltaTime || 16.6
       const dt = Math.min(0.05, rawDtMs / 1000)
@@ -589,16 +579,13 @@ export default function Journey() {
       const swayScale = isMobile ? 0.36 : 1.0
 
       // 1. Update camera path position u with single light damping step (lerp ~0.12)
-      const desiredU = s.manualOverride ? s.manualU : s.targetU
-      s.currentU += (desiredU - s.currentU) * JOURNEY_TUNING.cameraLerp
+      s.currentU += (s.targetU - s.currentU) * JOURNEY_TUNING.cameraLerp
       const camU = s.currentU
       const numEntries = JOURNEY_ENTRIES.length
       const maxCardIdx = numEntries - 1
 
       // Overall normalized progress [0..1]
-      const progressNorm = s.manualOverride
-        ? Math.max(0, Math.min(1, (camU - scrollLut.uStart) / (scrollLut.uEnd - scrollLut.uStart)))
-        : s.scrollProgress
+      const progressNorm = s.scrollProgress
 
       // Update vertical category line red fill & bottom edge progress line
       if (categoryFillRef.current) {
@@ -678,7 +665,7 @@ export default function Journey() {
       const lookAheadPt = evaluateSpline(splineData, camU + 1.5, swayScale)
 
       const camOffsetX = isMobile ? 0 : JOURNEY_TUNING.camOffsetX
-      const camOffsetY = isMobile ? -145 : JOURNEY_TUNING.camOffsetY
+      const camOffsetY = isMobile ? -85 : JOURNEY_TUNING.camOffsetY
       const camYaw = isMobile ? 0.035 : JOURNEY_TUNING.camYawRad
       const camPitch = isMobile ? -0.045 : JOURNEY_TUNING.camPitchRad
 
@@ -696,20 +683,17 @@ export default function Journey() {
       const cosRoll = Math.cos(bankRad)
       const sinRoll = Math.sin(bankRad)
 
-      if (s.showControlPoints || s.manualOverride) {
-        setDebugBankDeg(((bankRad * 180) / Math.PI).toFixed(2))
-      }
-
       const focal =
         JOURNEY_TUNING.focalLength *
         (isMobile ? Math.max(0.68, vw / 960) : vw / 1440)
 
-      // Reserve a 240px left gutter on desktop so the left Journey Index never overlaps cards
+      // Reserve a ~240px left gutter on desktop so the left Journey Index never overlaps cards
       const leftGutterPx = isMobile ? 16 : Math.min(260, Math.max(220, vw * 0.17))
       const screenCenterX = isMobile
         ? vw * 0.5
-        : Math.max(leftGutterPx + 240, vw * 0.53)
-      const screenCenterY = isMobile ? vh * 0.54 : vh * 0.56
+        : Math.max(leftGutterPx + 240, vw * 0.52)
+      // Elevated projection center placed in upper-middle viewport
+      const screenCenterY = isMobile ? vh * 0.46 : vh * 0.44
 
       const cosYaw = Math.cos(camYaw)
       const sinYaw = Math.sin(camYaw)
@@ -742,7 +726,6 @@ export default function Journey() {
       }
 
       // 6. Entry Stroke Reveal & Dust Alpha
-      // As the section enters (camU: -0.65 -> -0.15), the spline draws from the bottom edge toward the horizon
       const entryLineReveal = smoothstep(-0.65, -0.10, camU)
       const dustGlobalAlpha = smoothstep(-0.60, -0.15, camU) * horizonFadeOut
 
@@ -855,14 +838,20 @@ export default function Journey() {
 
         // Outside lifecycle bounds or unrevealed during entry stroke draw: hide completely
         if (d > maxVisibleAhead || d < -1.2 || i > uMaxDraw - 0.15) {
-          if (cardEl) cardEl.style.display = 'none'
+          if (cardEl) {
+            cardEl.style.display = 'none'
+            cardEl.style.opacity = '0'
+          }
           continue
         }
 
         const nodePt = evaluateSpline(splineData, i, swayScale)
         const proj = projectPoint(nodePt.x, nodePt.y, nodePt.z)
         if (!proj) {
-          if (cardEl) cardEl.style.display = 'none'
+          if (cardEl) {
+            cardEl.style.display = 'none'
+            cardEl.style.opacity = '0'
+          }
           continue
         }
 
@@ -1031,51 +1020,6 @@ export default function Journey() {
             `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(
               2
             )}deg) rotateZ(${rotZ.toFixed(2)}deg)`
-        }
-      }
-
-      // 9. Optional Debug Overlay: Render 3D Catmull-Rom Control Points & Cage
-      if (s.showControlPoints) {
-        const { pts } = splineData
-        ctx.strokeStyle = 'rgba(232, 40, 60, 0.35)'
-        ctx.lineWidth = 1
-        ctx.setLineDash([4, 4])
-        ctx.beginPath()
-        let started = false
-
-        for (let k = 0; k < pts.length; k++) {
-          const cp = pts[k]
-          const proj = projectPoint(cp.x * swayScale, cp.y, cp.z)
-          if (!proj || proj.depthZ > 4500) continue
-          if (!started) {
-            ctx.moveTo(proj.sx, proj.sy)
-            started = true
-          } else {
-            ctx.lineTo(proj.sx, proj.sy)
-          }
-        }
-        ctx.stroke()
-        ctx.setLineDash([])
-
-        for (let k = 0; k < pts.length; k++) {
-          const cp = pts[k]
-          const proj = projectPoint(cp.x * swayScale, cp.y, cp.z)
-          if (!proj || proj.depthZ > 4500) continue
-
-          ctx.fillStyle = '#E8283C'
-          ctx.beginPath()
-          ctx.arc(proj.sx, proj.sy, 4, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.fillStyle = '#F5F2EE'
-          ctx.font = '10px Inter, sans-serif'
-          ctx.fillText(
-            `CP[${cp.k}] (${Math.round(cp.x)}, ${Math.round(cp.y)}, ${Math.round(
-              cp.z
-            )})`,
-            proj.sx + 7,
-            proj.sy - 5
-          )
         }
       }
 
@@ -1386,68 +1330,6 @@ export default function Journey() {
           className="journey-section__exit-curtain"
           aria-hidden="true"
         />
-      )}
-
-      {/* 6. Temporary Debug Slider & Control Point Toggle */}
-      {!prefersReducedMotion && (
-        <aside className="journey-debug" aria-label="Journey Camera Debug">
-          <div className="journey-debug__header">
-            <span className="journey-debug__title">RAIL CAMERA DEBUG</span>
-            <button
-              type="button"
-              className="journey-debug__toggle-btn"
-              onClick={() => setDebugCollapsed((prev) => !prev)}
-            >
-              {debugCollapsed ? 'Expand' : 'Hide'}
-            </button>
-          </div>
-
-          {!debugCollapsed && (
-            <>
-              <label className="journey-debug__row">
-                <span>Manual Camera Slider</span>
-                <input
-                  type="checkbox"
-                  checked={manualOverride}
-                  onChange={(e) => {
-                    setManualOverride(e.target.checked)
-                    if (e.target.checked) {
-                      setManualU(Number(stateRef.current.currentU.toFixed(2)))
-                    }
-                  }}
-                />
-              </label>
-
-              <input
-                type="range"
-                min="-0.65"
-                max={JOURNEY_ENTRIES.length + 0.4}
-                step="0.01"
-                value={manualOverride ? manualU : focusedIndex}
-                disabled={!manualOverride}
-                onChange={(e) => setManualU(parseFloat(e.target.value))}
-                className="journey-debug__slider"
-              />
-
-              <label className="journey-debug__row">
-                <span>Show 3D Control Points</span>
-                <input
-                  type="checkbox"
-                  checked={showControlPoints}
-                  onChange={(e) => setShowControlPoints(e.target.checked)}
-                />
-              </label>
-
-              <div className="journey-debug__meta">
-                <span>
-                  Card: #{String(focusedIndex + 1).padStart(2, '0')} (
-                  {JOURNEY_ENTRIES[focusedIndex]?.id})
-                </span>
-                <span>Bank: {debugBankDeg}°</span>
-              </div>
-            </>
-          )}
-        </aside>
       )}
     </section>
   )

@@ -14,7 +14,7 @@
  * 3. Use `imageType: "photo"` for photography (uses `object-fit: cover` with
  *    `imageFocus`) or `imageType: "certificate"` for portrait/landscape
  *    certificates and documents (rendered on an ivory mat).
- * 4. Set `size: "major"` (~560x300 at focus, +30% scroll dwell) for key
+ * 4. Set `size: "major"` (~550x290 at focus, +30% scroll dwell) for key
  *    milestones, or `size: "minor"` (~400x210 at focus) for regular entries.
  */
 
@@ -47,10 +47,12 @@ export const JOURNEY_OUTRO = {
 }
 
 /**
- * 14 chronological entries (2022 -> 2026)
- * 5 "major" entries, 9 "minor" entries; 3 certificates, 11 photos.
+ * 14 chronological entries (2022 -> 2026) organized sequentially through the
+ * 7 journey chapters (2 entries per chapter) so the left timeline legend
+ * moves smoothly and strictly downwards without jumping back and forth.
  */
 export const JOURNEY_ENTRIES = [
+  // 1. Chapter 1: University (2022)
   {
     id: 'uni-admission-2022',
     date: '2022-08',
@@ -65,9 +67,24 @@ export const JOURNEY_ENTRIES = [
     placeholder: true,
   },
   {
-    id: 'proj-first-web-2022',
-    date: '2022-11',
+    id: 'uni-deans-merit-2022',
+    date: '2022-12',
     year: 2022,
+    category: 'University',
+    title: 'Academic Foundations & Dean’s List',
+    description:
+      'Recognized in the top tier of the cohort for academic excellence in discrete mathematics, data structures, and computer organization.',
+    imageType: 'certificate',
+    imageFocus: 'center center',
+    size: 'minor',
+    placeholder: true,
+  },
+
+  // 2. Chapter 2: Projects (2022–2023)
+  {
+    id: 'proj-first-web-2022',
+    date: '2023-01',
+    year: 2023,
     category: 'Projects',
     title: 'Campus Resource & Study Archiver',
     description:
@@ -78,21 +95,23 @@ export const JOURNEY_ENTRIES = [
     placeholder: true,
   },
   {
-    id: 'cert-ml-foundations-2023',
-    date: '2023-03',
+    id: 'proj-telemetry-engine-2023',
+    date: '2023-05',
     year: 2023,
-    category: 'Milestones',
-    title: 'Deep Learning & Neural Networks Certification',
+    category: 'Projects',
+    title: 'Predictive Anomaly Analytics Suite',
     description:
-      'Completed rigorous coursework in backpropagation, convolutional architectures, and optimization dynamics with distinction.',
-    imageType: 'certificate',
-    imageFocus: 'center center',
+      'Developed an interactive streaming dashboard and time-series forecasting engine capable of processing 50k events per second.',
+    imageType: 'photo',
+    imageFocus: 'center top',
     size: 'minor',
     placeholder: true,
   },
+
+  // 3. Chapter 3: Hackathons (2023–2024)
   {
     id: 'hack-regional-sprint-2023',
-    date: '2023-07',
+    date: '2023-08',
     year: 2023,
     category: 'Hackathons',
     title: 'Regional 36-Hour AI Build Sprint',
@@ -100,19 +119,6 @@ export const JOURNEY_ENTRIES = [
       'Built an automated document summarization pipeline under tight latency constraints, placing among the top finalists out of 60+ teams.',
     imageType: 'photo',
     imageFocus: 'center center',
-    size: 'minor',
-    placeholder: true,
-  },
-  {
-    id: 'lead-ai-society-2023',
-    date: '2023-10',
-    year: 2023,
-    category: 'Leadership',
-    title: 'Technical Lead, Collegiate AI Collective',
-    description:
-      'Organized weekly paper reading groups and hands-on PyTorch workshops for 120+ undergraduate members across departments.',
-    imageType: 'photo',
-    imageFocus: 'center top',
     size: 'minor',
     placeholder: true,
   },
@@ -129,16 +135,18 @@ export const JOURNEY_ENTRIES = [
     size: 'major',
     placeholder: true,
   },
+
+  // 4. Chapter 4: Research (2024)
   {
-    id: 'proj-telemetry-engine-2024',
+    id: 'cert-ml-foundations-2024',
     date: '2024-05',
     year: 2024,
-    category: 'Projects',
-    title: 'Predictive Anomaly Analytics Suite',
+    category: 'Research',
+    title: 'Deep Learning & Neural Networks Distinction',
     description:
-      'Developed an interactive streaming dashboard and time-series forecasting engine capable of processing 50k events per second.',
-    imageType: 'photo',
-    imageFocus: 'center top',
+      'Completed advanced coursework and laboratory research in backpropagation, convolutional architectures, and optimization dynamics.',
+    imageType: 'certificate',
+    imageFocus: 'center center',
     size: 'minor',
     placeholder: true,
   },
@@ -155,19 +163,8 @@ export const JOURNEY_ENTRIES = [
     size: 'major',
     placeholder: true,
   },
-  {
-    id: 'uni-deans-merit-2024',
-    date: '2024-12',
-    year: 2024,
-    category: 'University',
-    title: 'Academic Excellence & Dean’s Honour Roll',
-    description:
-      'Recognized in the top 5% of the cohort for sustained academic performance in machine learning, database systems, and distributed computing.',
-    imageType: 'certificate',
-    imageFocus: 'center center',
-    size: 'minor',
-    placeholder: true,
-  },
+
+  // 5. Chapter 5: Exchange (2025)
   {
     id: 'exch-dubai-semester-2025',
     date: '2025-02',
@@ -194,9 +191,24 @@ export const JOURNEY_ENTRIES = [
     size: 'minor',
     placeholder: true,
   },
+
+  // 6. Chapter 6: Leadership (2025)
+  {
+    id: 'lead-ai-society-2025',
+    date: '2025-08',
+    year: 2025,
+    category: 'Leadership',
+    title: 'Technical Lead, Collegiate AI Collective',
+    description:
+      'Organized weekly paper reading groups and hands-on PyTorch workshops for 120+ undergraduate members across departments.',
+    imageType: 'photo',
+    imageFocus: 'center top',
+    size: 'minor',
+    placeholder: true,
+  },
   {
     id: 'lead-symposium-chair-2025',
-    date: '2025-09',
+    date: '2025-10',
     year: 2025,
     category: 'Leadership',
     title: 'Convener, Annual University Tech Expo',
@@ -207,11 +219,13 @@ export const JOURNEY_ENTRIES = [
     size: 'minor',
     placeholder: true,
   },
+
+  // 7. Chapter 7: Milestones (2026)
   {
     id: 'res-capstone-thesis-2026',
     date: '2026-02',
     year: 2026,
-    category: 'Research',
+    category: 'Milestones',
     title: 'Senior Honours Capstone Defense',
     description:
       'Defended undergraduate thesis on retrieval-augmented agentic workflows and interpretable data synthesis before the faculty board.',
@@ -256,4 +270,3 @@ export const CATEGORY_META = JOURNEY_CATEGORIES.reduce((acc, category) => {
   }
   return acc
 }, {})
-

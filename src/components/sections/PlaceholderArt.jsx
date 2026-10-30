@@ -37,9 +37,8 @@ export default function PlaceholderArt({
   if (realUrl) {
     return (
       <div
-        className={`journey-card__media ${
-          isCertificate ? 'journey-card__media--certificate-mat' : ''
-        }`}
+        className={`journey-card__media ${isCertificate ? 'journey-card__media--certificate-mat' : ''
+          }`}
       >
         {isNearCamera && (
           <img
