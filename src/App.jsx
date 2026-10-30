@@ -9,6 +9,7 @@ import Hero from './components/sections/Hero'
 import About from './components/sections/About'
 import Filler from './components/sections/Filler'
 import Featured from './components/sections/Featured'
+import Journey from './components/sections/Journey'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
@@ -66,8 +67,8 @@ function PortfolioRoot() {
         {/* 03: Featured Work (Apple-style frosted glass cards: Projects, Experience, Exchange) */}
         <Featured />
 
-        {/* 04: Experience & Achievements Shell */}
-        <SectionShell id="experience" theme="dark" index="04" />
+        {/* 04: The Journey (3D Camera-on-a-Rail Matte Editorial Timeline) */}
+        <Journey />
 
         {/* 05: Contact Shell */}
         <SectionShell id="contact" theme="dark" index="05" />

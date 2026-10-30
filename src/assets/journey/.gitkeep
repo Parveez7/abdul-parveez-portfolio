@@ -1,0 +1,2 @@
+# Drop real journey images here named after each entry's `id` in `src/data/journey.js`
+# Supported formats: .webp, .jpg, .jpeg, .png (e.g., uni-admission-2022.webp)
