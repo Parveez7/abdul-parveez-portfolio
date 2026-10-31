@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { SmoothScrollProvider } from './context/SmoothScrollContext'
 import { ParticleStageProvider } from './components/canvas/ParticleStage'
 import ParticleDebugPanel from './components/canvas/ParticleDebugPanel'

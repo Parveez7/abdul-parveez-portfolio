@@ -1,8 +1,25 @@
 /**
  * Social Links & Orbit Items Data Configuration
- * Single source of truth for the 3D Orbiting Social Icons in Section 06 (Connect).
+ * Single source of truth for the 3D Social Icons in Section 06 (Connect).
+ * Ordered left-to-right matching the celestial arc layout.
  */
 export const SOCIAL_LINKS = [
+  {
+    id: 'email',
+    label: 'EMAIL',
+    handle: 'contact@abdulparvez.in',
+    url: 'mailto:contact@abdulparvez.in', // TODO: Update with real email
+    color: '#FFFFFF',
+    type: 'contact',
+  },
+  {
+    id: 'github',
+    label: 'GITHUB',
+    handle: 'github.com/abdulparveez',
+    url: '#', // TODO: Add real profile URL
+    color: '#FFFFFF',
+    type: 'social',
+  },
   {
     id: 'instagram',
     label: 'INSTAGRAM',
@@ -23,22 +40,6 @@ export const SOCIAL_LINKS = [
     id: 'x',
     label: 'X (TWITTER)',
     handle: '@abdulparveez',
-    url: '#', // TODO: Add real profile URL
-    color: '#FFFFFF',
-    type: 'social',
-  },
-  {
-    id: 'email',
-    label: 'EMAIL',
-    handle: 'contact@abdulparvez.in',
-    url: 'mailto:contact@abdulparvez.in', // TODO: Update with real email
-    color: '#FFFFFF',
-    type: 'contact',
-  },
-  {
-    id: 'github',
-    label: 'GITHUB',
-    handle: 'github.com/abdulparveez',
     url: '#', // TODO: Add real profile URL
     color: '#FFFFFF',
     type: 'social',

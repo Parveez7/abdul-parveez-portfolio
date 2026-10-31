@@ -15,7 +15,8 @@ export default function SectionIndex() {
 
   // References to line segment progress fills for 01..05
   const segmentRefs = useRef([])
-  const isHidden = activeSection === 'hero' || isChromeHidden
+  // Automatically hide sidebar slider on Hero and final Contact / Connect section
+  const isHidden = activeSection === 'hero' || activeSection === 'contact' || isChromeHidden
 
   useEffect(() => {
     const unsubs = []

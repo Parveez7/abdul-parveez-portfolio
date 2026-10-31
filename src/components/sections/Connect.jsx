@@ -11,6 +11,15 @@ import './Connect.css'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
+// Stationary celestial arc angles framing the head from left to right (all in front, none behind)
+const ARC_ANGLES = [
+  Math.PI * 1.08, // Email (far left near shoulder)
+  Math.PI * 0.81, // GitHub (upper left)
+  Math.PI * 0.50, // Instagram (top center apex)
+  Math.PI * 0.19, // LinkedIn (upper right)
+  Math.PI * -0.08, // X (far right near shoulder)
+]
+
 export default function Connect() {
   const sectionRef = useRef(null)
   const canvasRef = useRef(null)
@@ -29,9 +38,6 @@ export default function Connect() {
   // Internal mutable refs for 3D state
   const stateRef = useRef({
     hoveredIndex: -1,
-    orbitSpeed: 0.12,
-    targetSpeed: 0.12,
-    angle: 0,
     mouse: new THREE.Vector2(-999, -999),
     raycaster: new THREE.Raycaster(),
     tiles: [],
@@ -84,7 +90,7 @@ export default function Connect() {
     state.scene = scene
 
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100)
-    camera.position.set(0, 0, 7.5)
+    camera.position.set(0, 0, 7.2)
     state.camera = camera
 
     // Renderer with high quality & alpha support
@@ -101,27 +107,31 @@ export default function Connect() {
     state.renderer = renderer
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9)
     scene.add(ambientLight)
 
-    const keyLight = new THREE.DirectionalLight(0xfff7e6, 2.4)
+    const keyLight = new THREE.DirectionalLight(0xfff7e6, 2.5)
     keyLight.position.set(4, 3, 5)
     scene.add(keyLight)
 
     const rimLight = new THREE.DirectionalLight(0x90b4e8, 1.8)
-    rimLight.position.set(-4, 3, -3)
+    rimLight.position.set(-4, 3, 2)
     scene.add(rimLight)
 
-    const frontFill = new THREE.DirectionalLight(0xffffff, 0.6)
-    frontFill.position.set(0, -3, 3)
+    const frontFill = new THREE.DirectionalLight(0xffffff, 0.7)
+    frontFill.position.set(0, -2, 4)
     scene.add(frontFill)
 
-    // Layout configuration
+    // Layout configuration: LARGE prominent avatar matching the reference
     const isMobile = width < 900
+    const avatarPlaneHeight = isMobile ? 4.5 : 5.45
+    const avatarAspect = 1024 / 576
+    const avatarPlaneWidth = avatarPlaneHeight * avatarAspect
+
     const avatarX = isMobile ? 0 : 1.75
-    const avatarY = isMobile ? -0.85 : -0.7
-    const headCenterX = avatarX
-    const headCenterY = isMobile ? 0.35 : 0.55
+    const avatarY = isMobile ? -1.05 : -1.0
+    const headCenterX = isMobile ? 0 : 1.72
+    const headCenterY = isMobile ? 0.8 : 0.82
 
     // -------------------------------------------------------------
     // 1. Avatar Plane with custom B&W to radial color wipe shader
@@ -133,10 +143,6 @@ export default function Connect() {
       }
     })
     avatarTexture.colorSpace = THREE.SRGBColorSpace
-
-    const avatarPlaneHeight = isMobile ? 3.4 : 3.8
-    const avatarAspect = 1024 / 576
-    const avatarPlaneWidth = avatarPlaneHeight * avatarAspect
 
     const avatarUniforms = {
       uTexture: { value: avatarTexture },
@@ -168,7 +174,7 @@ export default function Connect() {
           vec4 tex = texture2D(uTexture, vUv);
           if (tex.a < 0.05) discard;
 
-          // Editorial monochrome tone
+          // Editorial monochrome tone matching site tokens
           float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
           vec3 bw = vec3(luma * 1.02, luma * 0.99, luma * 0.95);
 
@@ -189,7 +195,7 @@ export default function Connect() {
           vec3 finalColor = mix(bw, tex.rgb, wipe) + amberGlow * tex.a;
 
           // Soft bottom vignette fade
-          float bottomFade = smoothstep(0.0, 0.12, vUv.y);
+          float bottomFade = smoothstep(0.0, 0.10, vUv.y);
 
           gl_FragColor = vec4(finalColor, tex.a * bottomFade);
         }
@@ -208,63 +214,66 @@ export default function Connect() {
     scene.add(avatarMesh)
 
     // -------------------------------------------------------------
-    // 2. 3D Orbiting Ceramic Tiles
+    // 2. Stationary 3D Celestial Arc of Social Icons (ALL ALWAYS VISIBLE)
     // -------------------------------------------------------------
-    const orbitGroup = new THREE.Group()
-    orbitGroup.position.set(headCenterX, headCenterY, 0)
-    // Tilt the orbit ring elegantly (as in the design reference)
-    orbitGroup.rotation.z = -0.16
-    orbitGroup.rotation.x = 0.32
-    scene.add(orbitGroup)
+    const arcGroup = new THREE.Group()
+    arcGroup.position.set(headCenterX, headCenterY, 0.15) // Positioned in front of the avatar plane
+    scene.add(arcGroup)
 
-    const orbitRadiusX = isMobile ? 1.65 : 2.15
-    const orbitRadiusY = isMobile ? 0.75 : 0.95
+    const orbitRadiusX = isMobile ? 1.85 : 2.45
+    const orbitRadiusY = isMobile ? 1.15 : 1.45
 
-    // Orbit visual dashed curve
-    const ellipseCurve = new THREE.EllipseCurve(
+    // Visual dashed curve connecting the arc
+    const arcCurve = new THREE.EllipseCurve(
       0, 0,
       orbitRadiusX, orbitRadiusY,
-      0, 2 * Math.PI,
+      Math.PI * -0.12, Math.PI * 1.12,
       false, 0
     )
-    const curvePoints = ellipseCurve.getPoints(90)
-    const orbitTrackGeo = new THREE.BufferGeometry().setFromPoints(
+    const curvePoints = arcCurve.getPoints(80)
+    const arcTrackGeo = new THREE.BufferGeometry().setFromPoints(
       curvePoints.map((p) => new THREE.Vector3(p.x, p.y, 0))
     )
-    const orbitTrackMat = new THREE.LineDashedMaterial({
+    const arcTrackMat = new THREE.LineDashedMaterial({
       color: 0xffffff,
-      dashSize: 0.08,
-      gapSize: 0.08,
-      opacity: 0.22,
+      dashSize: 0.07,
+      gapSize: 0.07,
+      opacity: 0.28,
       transparent: true,
-      depthTest: true,
+      depthTest: false,
     })
-    const orbitTrackLine = new THREE.Line(orbitTrackGeo, orbitTrackMat)
-    orbitTrackLine.computeLineDistances()
-    orbitGroup.add(orbitTrackLine)
+    const arcTrackLine = new THREE.Line(arcTrackGeo, arcTrackMat)
+    arcTrackLine.computeLineDistances()
+    arcGroup.add(arcTrackLine)
 
-    // Tiny glowing beads along orbit
-    const beadGeo = new THREE.SphereGeometry(0.024, 12, 12)
+    // Glowing bead dots placed between the icons along the arc
+    const beadGeo = new THREE.SphereGeometry(0.028, 12, 12)
     const beadMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      opacity: 0.45,
+      opacity: 0.55,
       transparent: true,
     })
-    for (let i = 0; i < 6; i++) {
+    // 6 intermediate glowing node beads
+    const beadAngles = [
+      Math.PI * 0.95,
+      Math.PI * 0.65,
+      Math.PI * 0.35,
+      Math.PI * 0.05,
+    ]
+    beadAngles.forEach((bAngle) => {
       const bead = new THREE.Mesh(beadGeo, beadMat)
-      const bAngle = (i / 6) * Math.PI * 2 + 0.3
       bead.position.set(
         Math.cos(bAngle) * orbitRadiusX,
         Math.sin(bAngle) * orbitRadiusY,
         0
       )
-      orbitGroup.add(bead)
-    }
+      arcGroup.add(bead)
+    })
 
     // Extruded rounded tile geometry (solid dark ceramic)
-    const tileW = 0.58
-    const tileH = 0.58
-    const tileRadius = 0.13
+    const tileW = 0.62
+    const tileH = 0.62
+    const tileRadius = 0.14
     const tileShape = new THREE.Shape()
     const tx = -tileW / 2
     const ty = -tileH / 2
@@ -281,7 +290,7 @@ export default function Connect() {
 
     const extrudeSettings = {
       steps: 1,
-      depth: 0.09,
+      depth: 0.10,
       bevelEnabled: true,
       bevelThickness: 0.035,
       bevelSize: 0.035,
@@ -291,12 +300,12 @@ export default function Connect() {
     const tileGeometry = new THREE.ExtrudeGeometry(tileShape, extrudeSettings)
     tileGeometry.center()
 
-    // Ceramic body material (NO frosted glass, NO backdrop filter)
+    // Ceramic body material (solid dark ceramic)
     const ceramicMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x161619,
-      roughness: 0.22,
+      roughness: 0.20,
       metalness: 0.08,
-      clearcoat: 0.9,
+      clearcoat: 0.92,
       clearcoatRoughness: 0.12,
       reflectivity: 0.6,
       depthTest: true,
@@ -306,7 +315,6 @@ export default function Connect() {
     // Generate canvas textures for the 5 icons
     const textures = createSocialTextures()
     const tiles = []
-    const totalItems = SOCIAL_LINKS.length
 
     SOCIAL_LINKS.forEach((item, index) => {
       const container = new THREE.Group()
@@ -322,17 +330,25 @@ export default function Connect() {
         const faceMat = new THREE.MeshStandardMaterial({
           map: faceTex,
           transparent: true,
-          roughness: 0.25,
+          roughness: 0.22,
           metalness: 0.05,
           depthTest: true,
           depthWrite: true,
         })
         const faceMesh = new THREE.Mesh(faceGeo, faceMat)
-        faceMesh.position.z = 0.085
+        faceMesh.position.z = 0.09
         container.add(faceMesh)
       }
 
-      orbitGroup.add(container)
+      arcGroup.add(container)
+
+      // Compute stationary position on celestial arc
+      const angle = ARC_ANGLES[index] || 0
+      const baseX = Math.cos(angle) * orbitRadiusX
+      const baseY = Math.sin(angle) * orbitRadiusY
+      const baseZ = 0.15
+
+      container.position.set(baseX, baseY, baseZ)
 
       tiles.push({
         id: item.id,
@@ -340,7 +356,10 @@ export default function Connect() {
         data: item,
         container,
         mesh,
-        baseAngle: (index / totalItems) * Math.PI * 2,
+        baseX,
+        baseY,
+        baseZ,
+        floatPhase: index * 1.3,
         currentScale: 1,
         targetScale: 1,
         currentZOffset: 0,
@@ -362,14 +381,20 @@ export default function Connect() {
       state.mouse.x = (clientX / rect.width) * 2 - 1
       state.mouse.y = -(clientY / rect.height) * 2 + 1
 
-      // Subtle parallax on avatar
+      // Subtle parallax on avatar & arc
       if (!isMobile) {
-        const tiltX = (state.mouse.y * 0.03).toFixed(4)
-        const tiltY = (state.mouse.x * 0.04).toFixed(4)
+        const tiltX = (state.mouse.y * 0.025).toFixed(4)
+        const tiltY = (state.mouse.x * 0.035).toFixed(4)
         gsap.to(avatarMesh.rotation, {
           x: tiltX,
           y: tiltY,
-          duration: 0.5,
+          duration: 0.6,
+          ease: 'power1.out',
+        })
+        gsap.to(arcGroup.rotation, {
+          x: tiltX * 0.5,
+          y: tiltY * 0.5,
+          duration: 0.6,
           ease: 'power1.out',
         })
       }
@@ -439,11 +464,10 @@ export default function Connect() {
     const setHoveredTile = (index) => {
       state.hoveredIndex = index
       if (index !== -1) {
-        state.targetSpeed = 0.0 // Pause rotation on hover
         container.style.cursor = 'pointer'
         const tile = tiles[index]
-        tile.targetScale = 1.16
-        tile.targetZOffset = 0.35
+        tile.targetScale = 1.20
+        tile.targetZOffset = 0.45
 
         // Tooltip screen position
         tile.container.getWorldPosition(tempVec3)
@@ -457,7 +481,6 @@ export default function Connect() {
           y: sy,
         })
       } else {
-        state.targetSpeed = 0.12 // Resume rotation
         container.style.cursor = 'default'
         tiles.forEach((t) => {
           t.targetScale = 1.0
@@ -496,7 +519,6 @@ export default function Connect() {
     const animate = () => {
       if (state.isDestroyed) return
 
-      const delta = clock.getDelta()
       const time = clock.getElapsedTime()
 
       // Update shader idle time & breathing
@@ -504,28 +526,28 @@ export default function Connect() {
       const breathScale = 1.0 + Math.sin(time * 1.5) * 0.003
       avatarMesh.scale.set(breathScale, breathScale, 1.0)
 
-      // Ease orbit rotation speed smoothly
-      state.orbitSpeed += (state.targetSpeed - state.orbitSpeed) * 0.1
-      state.angle += state.orbitSpeed * delta
-
       const cW = rectWidth()
       const cH = rectHeight()
       const overlayLinks = overlayRef.current?.children || []
 
-      // Position tiles along ellipse
+      // Position tiles along stationary arc with gentle levitation
       tiles.forEach((t, i) => {
-        const currentAngle = t.baseAngle + state.angle
-        const x = Math.cos(currentAngle) * orbitRadiusX
-        const y = Math.sin(currentAngle) * orbitRadiusY
-        const z = t.currentZOffset
+        // Gentle organic idle floating (subtle vertical oscillation)
+        const floatY = Math.sin(time * 1.8 + t.floatPhase) * 0.035
+        const floatZ = Math.cos(time * 1.4 + t.floatPhase) * 0.015
 
         // Ease scale and Z forward offset
         t.currentScale += (t.targetScale - t.currentScale) * 0.15
         t.currentZOffset += (t.targetZOffset - t.currentZOffset) * 0.15
-        t.container.scale.set(t.currentScale, t.currentScale, t.currentScale)
-        t.container.position.set(x, y, z)
 
-        // Keep tiles gracefully facing camera while preserving gentle natural tilt
+        t.container.scale.set(t.currentScale, t.currentScale, t.currentScale)
+        t.container.position.set(
+          t.baseX,
+          t.baseY + floatY,
+          t.baseZ + floatZ + t.currentZOffset
+        )
+
+        // Keep tiles gracefully facing camera
         t.container.lookAt(camera.position)
 
         // Project 3D world position to 2D HTML overlay elements for keyboard navigation
@@ -589,9 +611,8 @@ export default function Connect() {
     const state = stateRef.current
     if (state.tiles[index]) {
       state.hoveredIndex = index
-      state.targetSpeed = 0.0
-      state.tiles[index].targetScale = 1.16
-      state.tiles[index].targetZOffset = 0.35
+      state.tiles[index].targetScale = 1.20
+      state.tiles[index].targetZOffset = 0.45
       const tile = state.tiles[index]
       setActiveTooltip({
         label: tile.data.label,
@@ -606,7 +627,6 @@ export default function Connect() {
     const state = stateRef.current
     if (state.hoveredIndex === index) {
       state.hoveredIndex = -1
-      state.targetSpeed = 0.12
       if (state.tiles[index]) {
         state.tiles[index].targetScale = 1.0
         state.tiles[index].targetZOffset = 0.0
@@ -623,14 +643,14 @@ export default function Connect() {
       className="connect-section"
       aria-label="Let's Connect"
     >
-      {/* Background Decorative Hairline Arc (from design reference) */}
+      {/* Background Decorative Hairline Arc */}
       <div className="connect__arc-deco" aria-hidden="true" />
 
-      {/* Main Grid: Left Editorial Details + Right 3D Orbit Stage */}
+      {/* Main Grid: Left Editorial Details + Right 3D Avatar & Icons */}
       <div className="connect__container">
-        {/* Left Column: Heading, Bio, CTAs */}
+        {/* Left Column: Heading, Bio, CTAs (comfortable spacing and margin-left) */}
         <div className="connect__left">
-          {/* Eyebrow: 06 | CONNECT */}
+          {/* Eyebrow: 06 / CONNECT */}
           <div className="connect__eyebrow">
             <span className="connect__eyebrow-num">06</span>
             <span className="connect__eyebrow-sep">/</span>
@@ -643,7 +663,7 @@ export default function Connect() {
             <span className="connect__heading-serif">Connect</span>
           </h2>
 
-          {/* 90px White Hairline Bar */}
+          {/* White Hairline Bar */}
           <div className="connect__hairline" aria-hidden="true" />
 
           {/* Supporting Statement */}
@@ -717,11 +737,11 @@ export default function Connect() {
           </div>
         </div>
 
-        {/* Right Column: 3D Three.js Interactive Orbit Stage */}
+        {/* Right Column: 3D Three.js Interactive Avatar & Halo of Social Icons */}
         <div ref={containerRef} className="connect__stage">
           <canvas ref={canvasRef} className="connect__canvas" />
 
-          {/* First-time mobile / touch hint */}
+          {/* First-time interaction hint */}
           {!hasInteracted && (
             <div ref={hintRef} className="connect__touch-hint" aria-hidden="true">
               Hover or tap to reveal color
