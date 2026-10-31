@@ -1,0 +1,476 @@
+/* -----------------------------------------------------------------------------
+   Section 06: Let's Connect
+   Ultra-luxury, dark matte editorial layout with 3D orbiting ceramic social icons
+   ----------------------------------------------------------------------------- */
+.connect-section {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background-color: #0A0A0C;
+  color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Subtle background vignette & ambient light */
+.connect-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 75% 55%, rgba(45, 35, 30, 0.14) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, rgba(18, 18, 22, 0.4) 0%, rgba(10, 10, 12, 0.95) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Delicate top-left geometric hairline arc */
+.connect__arc-deco {
+  position: absolute;
+  top: -180px;
+  left: -120px;
+  width: 740px;
+  height: 740px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  pointer-events: none;
+  z-index: 0;
+  mask-image: radial-gradient(circle at 65% 65%, black 25%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle at 65% 65%, black 25%, transparent 70%);
+}
+
+/* Main Grid Container */
+.connect__container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: clamp(4.5rem, 7vh, 8rem) clamp(1.5rem, 4vw, 5rem) clamp(2rem, 4vh, 4rem);
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  gap: clamp(2rem, 3vw, 4rem);
+  flex: 1;
+}
+
+/* -----------------------------------------------------------------------------
+   Left Column: Typography & Action Buttons
+   ----------------------------------------------------------------------------- */
+.connect__left {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.connect__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #7E7E86;
+  margin-bottom: 1.25rem;
+}
+
+.connect__eyebrow-num {
+  color: #A0A0A8;
+}
+
+.connect__eyebrow-sep {
+  opacity: 0.4;
+}
+
+.connect__eyebrow-text {
+  color: #8E8E96;
+}
+
+.connect__heading {
+  margin: 0;
+  padding: 0;
+}
+
+.connect__heading-grotesk {
+  display: block;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: clamp(2.75rem, 5.2vw, 5.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+}
+
+.connect__heading-serif {
+  display: block;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(3.2rem, 6vw, 6.25rem);
+  line-height: 1.05;
+  color: #FFFFFF;
+  margin-top: 0.1em;
+}
+
+/* 90px White Hairline Bar */
+.connect__hairline {
+  width: 90px;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.85);
+  margin: 1.85rem 0 1.65rem;
+}
+
+.connect__desc {
+  max-width: 36ch;
+  font-family: var(--font-sans);
+  font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.08rem);
+  line-height: 1.65;
+  color: #9A9AA2;
+  margin: 0 0 2.25rem;
+}
+
+/* Action Buttons */
+.connect__actions {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+}
+
+.connect__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 13px 26px;
+  border-radius: 9999px;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.25s var(--ease-out),
+    background-color 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    box-shadow 0.25s var(--ease-out);
+}
+
+.connect__btn-icon {
+  flex-shrink: 0;
+  transition: transform 0.25s var(--ease-out);
+}
+
+/* Primary Button: Solid White */
+.connect__btn--primary {
+  background-color: #FFFFFF;
+  color: #0E0E10;
+  font-weight: 600;
+  border: 1px solid #FFFFFF;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+}
+
+.connect__btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px rgba(255, 255, 255, 0.22);
+}
+
+.connect__btn--primary:hover .connect__btn-icon {
+  transform: translate(2px, -2px);
+}
+
+/* Secondary Button: Clean 1px Outline */
+.connect__btn--secondary {
+  background-color: transparent;
+  color: #FFFFFF;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.connect__btn--secondary:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Accessibility Color Toggle Button */
+.connect__accessibility-controls {
+  margin-top: 0.5rem;
+}
+
+.connect__color-toggle {
+  background: none;
+  border: none;
+  padding: 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6C6C75;
+  cursor: pointer;
+  transition: color 0.2s var(--ease-out);
+}
+
+.connect__color-toggle:hover {
+  color: #A0A0A8;
+}
+
+.connect__color-toggle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #55555D;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.connect__color-toggle--active .connect__color-toggle-dot {
+  background-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.connect__color-toggle--active {
+  color: #D0D0D5;
+}
+
+/* -----------------------------------------------------------------------------
+   Right Column: Three.js Interactive 3D Canvas
+   ----------------------------------------------------------------------------- */
+.connect__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 540px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.connect__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Touch / Interaction hint */
+.connect__touch-hint {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #606068;
+  pointer-events: none;
+  opacity: 0.75;
+  transition: opacity 0.5s ease;
+}
+
+/* Floating Tooltip */
+.connect__tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 6px 12px;
+  background-color: #161619;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 20;
+  white-space: nowrap;
+  animation: tooltipFadeIn 0.2s var(--ease-out);
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -90%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+}
+
+.connect__tooltip-label {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.connect__tooltip-handle {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #CCCCCC;
+}
+
+/* Accessible HTML Overlays */
+.connect__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.connect__social-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  pointer-events: auto;
+  outline: none;
+}
+
+.connect__social-anchor:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+
+/* -----------------------------------------------------------------------------
+   Bottom Footer Strip
+   ----------------------------------------------------------------------------- */
+.connect__footer {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+}
+
+.connect__footer-container {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 1.75rem clamp(1.5rem, 4vw, 5rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.connect__footer-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.connect__footer-name {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+}
+
+.connect__footer-tagline {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-style: italic;
+  color: #72727A;
+  margin-top: 2px;
+}
+
+.connect__footer-right {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 2vw, 2.5rem);
+}
+
+.connect__back-to-top {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #92929A;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+
+.connect__back-arrow {
+  display: inline-block;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.connect__back-to-top:hover {
+  color: #FFFFFF;
+  transform: translateY(-2px);
+}
+
+.connect__back-to-top:hover .connect__back-arrow {
+  transform: translateY(-2px);
+}
+
+.connect__copyright {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: #585860;
+}
+
+/* -----------------------------------------------------------------------------
+   Responsive Breakpoints
+   ----------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .connect__container {
+    grid-template-columns: 1fr;
+    padding-top: 6rem;
+    gap: 3rem;
+  }
+
+  .connect__stage {
+    min-height: 480px;
+  }
+}
+
+@media (max-width: 640px) {
+  .connect__container {
+    padding-top: 5rem;
+  }
+
+  .connect__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connect__btn {
+    justify-content: center;
+  }
+
+  .connect__stage {
+    min-height: 400px;
+  }
+
+  .connect__footer-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+}

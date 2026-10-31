@@ -6,27 +6,34 @@ export const SITE = {
   name: 'Abdul Parveez',
   nameUpper: 'ABDUL PARVEEZ',
   monogram: 'AP',
-  tagline: 'AI Web Dev & Data Enthusiast',
-  domain: 'AbdulParvez.in',
+  tagline: 'AI Developer · Data Enthusiast · Builder',
+  domain: 'abdulparveez.com',
+  email: 'contact@abdulparvez.in',
+  calendarUrl: 'https://cal.com',
 
-  // Top navigation links
+  // Top navigation links (matches design: Home, Work, Journey, Arsenal + Connect CTA)
   nav: [
-    { id: 'about', label: 'ABOUT', href: '#about' },
-    { id: 'projects', label: 'PROJECTS', href: '#projects' },
-    { id: 'experience', label: 'EXPERIENCE', href: '#experience' },
-    { id: 'achievements', label: 'ACHIEVEMENTS', href: '#experience' },
-    { id: 'skills', label: 'ARSENAL', href: '#skills' },
-    { id: 'contact', label: 'CONTACT', href: '#contact' },
+    { id: 'hero', label: 'Home', href: '#hero' },
+    { id: 'projects', label: 'Work', href: '#projects' },
+    { id: 'experience', label: 'Journey', href: '#experience' },
+    { id: 'skills', label: 'Arsenal', href: '#skills' },
   ],
+
+  // Header Call To Action button
+  cta: {
+    id: 'contact',
+    label: 'Connect',
+    href: '#contact',
+  },
 
   // Section Index (01 - 06) as specified in design brief & references
   sectionIndex: [
     { index: '01', id: 'about', label: 'About', targetTheme: 'light' },
     { index: '02', id: 'filler', label: 'Philosophy', targetTheme: 'dark' },
-    { index: '03', id: 'projects', label: 'Projects', targetTheme: 'dark' },
+    { index: '03', id: 'projects', label: 'Featured Work', targetTheme: 'dark' },
     { index: '04', id: 'experience', label: 'Journey', targetTheme: 'dark' },
     { index: '05', id: 'skills', label: 'Technical Arsenal', targetTheme: 'dark' },
-    { index: '06', id: 'contact', label: 'Contact', targetTheme: 'dark' },
+    { index: '06', id: 'contact', label: 'Connect', targetTheme: 'dark' },
   ],
 
   // Social / external profiles

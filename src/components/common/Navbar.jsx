@@ -14,11 +14,19 @@ export default function Navbar() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isHero = activeSection === 'hero' && !isScrolled
+  const isConnectActive = activeSection === 'contact'
 
   // Handle clicking nav item
   const handleNavClick = (e, href) => {
     e.preventDefault()
     setMobileMenuOpen(false)
+
+    // Support detail page routing if current path is not root
+    if (typeof window !== 'undefined' && window.location.pathname !== '/' && window.location.pathname !== '') {
+      window.location.href = `/${href}`
+      return
+    }
+
     scrollTo(href, { offset: 0 })
   }
 
@@ -83,7 +91,7 @@ export default function Navbar() {
             </span>
           </a>
 
-          {/* Right: Desktop Navigation Links */}
+          {/* Right: Desktop Navigation Links + Connect CTA */}
           <nav className="navbar__nav-desktop" aria-label="Main Navigation">
             <ul className="navbar__links">
               {SITE.nav.map((item) => {
@@ -106,6 +114,36 @@ export default function Navbar() {
                   </li>
                 )
               })}
+
+              {/* Connect CTA Pill Button */}
+              {SITE.cta && (
+                <li className="navbar__item navbar__item--cta">
+                  <a
+                    href={SITE.cta.href}
+                    onClick={(e) => handleNavClick(e, SITE.cta.href)}
+                    className={`navbar__cta-btn ${isConnectActive ? 'navbar__cta-btn--active' : ''}`}
+                  >
+                    <span>{SITE.cta.label}</span>
+                    <svg
+                      className="navbar__cta-arrow"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M2.5 9.5L9.5 2.5M9.5 2.5H4.5M9.5 2.5V7.5"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                </li>
+              )}
             </ul>
           </nav>
 
@@ -154,6 +192,25 @@ export default function Navbar() {
                 </li>
               )
             })}
+
+            {/* Mobile CTA */}
+            {SITE.cta && (
+              <li
+                className="mobile-menu__item mobile-menu__item--cta"
+                style={{ '--stagger-index': SITE.nav.length }}
+              >
+                <a
+                  href={SITE.cta.href}
+                  onClick={(e) => handleNavClick(e, SITE.cta.href)}
+                  className={`mobile-menu__link mobile-menu__link--cta ${
+                    isConnectActive ? 'mobile-menu__link--active' : ''
+                  }`}
+                >
+                  <span className="mobile-menu__number">0{SITE.nav.length + 1}</span>
+                  <span className="mobile-menu__text">{SITE.cta.label} ↗</span>
+                </a>
+              </li>
+            )}
           </ul>
 
           <div className="mobile-menu__footer">
@@ -164,4 +221,3 @@ export default function Navbar() {
     </>
   )
 }
-

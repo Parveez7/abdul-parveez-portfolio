@@ -11,26 +11,7 @@ import Filler from './components/sections/Filler'
 import Featured from './components/sections/Featured'
 import Journey from './components/sections/Journey'
 import Arsenal from './components/sections/Arsenal'
-import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
-
-/**
- * Clean Section Container Shell for upcoming sections
- */
-function SectionShell({ id, theme, index, children }) {
-  const sectionRef = useRef(null)
-  useSectionScrollTrigger(sectionRef, { id, theme, index })
-
-  return (
-    <section
-      ref={sectionRef}
-      id={id}
-      data-theme={theme}
-      className="section-shell"
-    >
-      {children}
-    </section>
-  )
-}
+import Connect from './components/sections/Connect'
 
 function PortfolioRoot() {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -74,8 +55,8 @@ function PortfolioRoot() {
         {/* 05: Technical Arsenal (Precision Blueprint Spec Sheet & Logo Marquee) */}
         <Arsenal />
 
-        {/* 06: Contact Shell */}
-        <SectionShell id="contact" theme="dark" index="06" />
+        {/* 06: Let's Connect (3D Orbiting Social Icons & Interactive Editorial Section) */}
+        <Connect />
       </main>
     </>
   )
