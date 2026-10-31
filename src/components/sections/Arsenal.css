@@ -1,0 +1,706 @@
+/* =========================================================================
+   TECHNICAL ARSENAL — Section 05 Styles
+   Precision Blueprint Spec Sheet & Two-Row Monochrome Logo Marquee
+   Restrained, Editorial, Matte (Zero Glassmorphism)
+   ========================================================================= */
+
+.arsenal-section {
+  position: relative;
+  width: 100%;
+  min-height: 100svh;
+  background-color: var(--bg-dark, #0E0E10);
+  color: var(--text-light, #F5F2EE);
+  overflow: hidden;
+  z-index: var(--z-content, 5);
+  box-sizing: border-box;
+  padding: clamp(5rem, 8.5vh, 7.5rem) 0 clamp(6rem, 10vh, 9rem);
+}
+
+.arsenal-section__anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------
+   Backdrop Vignette & Film Grain Overlay
+   ------------------------------------------------------------------------- */
+.arsenal-section__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 85% 75% at 50% 45%,
+    rgba(22, 21, 24, 0.2) 0%,
+    rgba(14, 14, 16, 0.75) 68%,
+    #0B0B0D 100%
+  );
+  z-index: 1;
+}
+
+.arsenal-section__grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='arsenalNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23arsenalNoise)'/%3E%3C/svg%3E");
+  z-index: 2;
+}
+
+/* -------------------------------------------------------------------------
+   Blueprint Grid (1px lines every 64px: Base 4% + Interactive 14% Cursor Reveal)
+   ------------------------------------------------------------------------- */
+.arsenal-grid--base {
+  position: absolute;
+  inset: 0;
+  background-size: 64px 64px;
+  background-image:
+    linear-gradient(to right, rgba(245, 242, 238, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 242, 238, 0.04) 1px, transparent 1px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.arsenal-grid--reveal {
+  position: absolute;
+  inset: 0;
+  background-size: 64px 64px;
+  background-image:
+    linear-gradient(to right, rgba(245, 242, 238, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 242, 238, 0.14) 1px, transparent 1px);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  mask-image: radial-gradient(
+    circle 260px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle 260px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  transition: opacity 0.4s var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .arsenal-section:hover .arsenal-grid--reveal {
+    opacity: 1;
+  }
+}
+
+/* Container */
+.arsenal-section__container {
+  position: relative;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 clamp(1.5rem, 4.5vw, 4.5rem);
+  box-sizing: border-box;
+  z-index: 5;
+}
+
+/* -------------------------------------------------------------------------
+   Centered Editorial Heading
+   ------------------------------------------------------------------------- */
+.arsenal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: clamp(2.75rem, 5.5vh, 4.5rem);
+}
+
+.arsenal-header__eyebrow-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: clamp(0.75rem, 1.4vh, 1.25rem);
+}
+
+.arsenal-header__rule {
+  display: inline-block;
+  width: 38px;
+  height: 1px;
+  background-color: rgba(245, 242, 238, 0.22);
+}
+
+.arsenal-header__eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted-on-dark, rgba(245, 242, 238, 0.58));
+}
+
+.arsenal-header__title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.92;
+}
+
+.arsenal-header__title-technical {
+  font-family: var(--font-sans);
+  font-weight: 900;
+  font-size: clamp(2.5rem, 5.2vw, 5.4rem);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--text-light, #F5F2EE);
+}
+
+.arsenal-header__title-arsenal {
+  font-family: var(--font-serif-italic);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(2.9rem, 6vw, 6.2rem);
+  letter-spacing: -0.01em;
+  color: var(--text-light, #F5F2EE);
+  margin-top: -0.06em;
+}
+
+/* Sparing 48px Red Hairline Underline */
+.arsenal-header__underline {
+  width: 48px;
+  height: 2px;
+  background-color: var(--accent, #E8283C);
+  margin-top: clamp(0.85rem, 1.6vh, 1.4rem);
+  margin-bottom: clamp(0.95rem, 1.8vh, 1.5rem);
+}
+
+.arsenal-header__subtitle {
+  margin: 0 0 clamp(0.9rem, 1.6vh, 1.35rem);
+  max-width: 46ch;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 0.95vw, 15px);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--muted-on-dark, rgba(245, 242, 238, 0.62));
+}
+
+.arsenal-header__stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 242, 238, 0.48);
+}
+
+.arsenal-header__stats-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-light, #F5F2EE);
+}
+
+.arsenal-header__stats-dot {
+  color: var(--accent, #E8283C);
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------
+   Two-Row Seamless Monochrome Logo Marquee
+   ------------------------------------------------------------------------- */
+.arsenal-marquee-wrap {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  margin-bottom: clamp(3.5rem, 7vh, 5.5rem);
+  overflow: hidden;
+  user-select: none;
+}
+
+.arsenal-marquee {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 1.8vw, 24px);
+  padding: 18px 0 28px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+
+.arsenal-marquee__row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+.arsenal-marquee__track {
+  display: flex;
+  align-items: center;
+  gap: clamp(48px, 5.2vw, 84px);
+  width: max-content;
+  will-change: transform;
+}
+
+/* Row 1: Leftward Scrolling (~70s loop) */
+.arsenal-marquee__track--left {
+  animation: marqueeScrollLeft 70s linear infinite;
+}
+
+/* Row 2: Rightward Scrolling (~90s loop, slightly smaller & dimmer) */
+.arsenal-marquee__track--right {
+  animation: marqueeScrollRight 90s linear infinite;
+}
+
+@keyframes marqueeScrollLeft {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marqueeScrollRight {
+  0% {
+    transform: translate3d(-50%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Hover: Marquee pauses right at cursor so mark can be inspected */
+.arsenal-marquee__row:hover .arsenal-marquee__track {
+  animation-play-state: paused;
+}
+
+/* Off-screen pause for 60fps performance */
+.arsenal-section--offscreen .arsenal-marquee__track {
+  animation-play-state: paused !important;
+}
+
+/* Single Marquee Item */
+.arsenal-marquee__item {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  cursor: default;
+  outline: none;
+}
+
+.arsenal-marquee__visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+}
+
+.arsenal-marquee__row--bottom .arsenal-marquee__visual {
+  height: 30px;
+}
+
+.arsenal-marquee__svg {
+  height: 32px;
+  width: auto;
+  max-width: 38px;
+  color: rgba(245, 242, 238, 0.42);
+  transition:
+    color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.arsenal-marquee__row--bottom .arsenal-marquee__svg {
+  height: 27px;
+  color: rgba(245, 242, 238, 0.32);
+}
+
+/* Typographic Wordmark Fallback (Power BI, Tableau) */
+.arsenal-marquee__wordmark {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 242, 238, 0.42);
+  white-space: nowrap;
+  transition:
+    color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.arsenal-marquee__row--bottom .arsenal-marquee__wordmark {
+  font-size: 12px;
+  color: rgba(245, 242, 238, 0.32);
+}
+
+/* Tiny Red Dot Above Hovered Mark */
+.arsenal-marquee__dot {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -4px);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+  opacity: 0;
+  transition:
+    opacity 0.22s var(--ease-out),
+    transform 0.22s var(--ease-out);
+}
+
+/* Tracked Caps Tool Name on Hover */
+.arsenal-marquee__label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-light, #F5F2EE);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.22s var(--ease-out),
+    transform 0.22s var(--ease-out);
+}
+
+/* Marquee Hover & Focus States */
+.arsenal-marquee__item:hover .arsenal-marquee__svg,
+.arsenal-marquee__item:hover .arsenal-marquee__wordmark,
+.arsenal-marquee__item:focus-visible .arsenal-marquee__svg,
+.arsenal-marquee__item:focus-visible .arsenal-marquee__wordmark {
+  color: var(--text-light, #F5F2EE);
+  transform: scale(1.12);
+}
+
+.arsenal-marquee__item:hover .arsenal-marquee__dot,
+.arsenal-marquee__item:focus-visible .arsenal-marquee__dot {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.arsenal-marquee__item:hover .arsenal-marquee__label,
+.arsenal-marquee__item:focus-visible .arsenal-marquee__label {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* -------------------------------------------------------------------------
+   Categorized "Spec Sheet" Grid (2 cols x 3 rows on Desktop, 1 col Mobile)
+   ------------------------------------------------------------------------- */
+.arsenal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(2rem, 3.6vw, 3.8rem);
+  width: 100%;
+}
+
+/* Category Block: Defined by Hairlines & Corner Ticks (NOT filled cards) */
+.spec-block {
+  position: relative;
+  padding: clamp(1.6rem, 2.4vw, 2.5rem) clamp(1.25rem, 2vw, 2.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.2rem, 1.8vw, 1.75rem);
+  outline: none;
+  transition: opacity 0.35s var(--ease-out);
+}
+
+/* 1px Top Hairline with entrance reveal */
+.spec-block__hairline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background-color: rgba(245, 242, 238, 0.15);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition:
+    transform 0.75s var(--ease-out),
+    background-color 0.3s var(--ease-out);
+}
+
+.spec-block--entered .spec-block__hairline {
+  transform: scaleX(1);
+}
+
+/* L-Shaped Corner Ticks (~10px, hairline) */
+.spec-block__tick {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  color: rgba(245, 242, 238, 0.28);
+  transition:
+    color 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out);
+}
+
+.spec-block__tick--tl {
+  top: -1px;
+  left: 0;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+}
+
+.spec-block__tick--br {
+  bottom: 0;
+  right: 0;
+  border-bottom: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+}
+
+/* Category Header: "01 — TITLE" + Tabular Item Count */
+.spec-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.spec-block__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spec-block__index {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--accent, #E8283C);
+}
+
+.spec-block__dash {
+  display: inline-block;
+  width: 12px;
+  height: 1px;
+  background-color: rgba(245, 242, 238, 0.26);
+}
+
+.spec-block__title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(12.5px, 0.9vw, 14px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(245, 242, 238, 0.88);
+}
+
+.spec-block__count {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: rgba(245, 242, 238, 0.38);
+}
+
+/* Skill Chips Container */
+.spec-block__chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 10px;
+}
+
+/* Solid Matte #131316 Skill Chip */
+.spec-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 6px;
+  background-color: #131316;
+  border: 1px solid rgba(245, 242, 238, 0.12);
+  color: #B8B4AE; /* AA contrast compliant on #131316 */
+  font-family: var(--font-sans);
+  font-size: clamp(12.5px, 0.88vw, 13.5px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  cursor: default;
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition:
+    transform 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    color 0.25s var(--ease-out),
+    opacity 0.25s var(--ease-out);
+}
+
+/* Stagger entrance when triggered */
+.spec-block--entered .spec-chip {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition-delay: var(--chip-delay, 0ms);
+}
+
+/* Tiny Leading Dot (Grey -> Red on hover) */
+.spec-chip__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: rgba(245, 242, 238, 0.32);
+  flex-shrink: 0;
+  transition: background-color 0.25s var(--ease-out);
+}
+
+.spec-chip__text {
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+   Interactions: Chip Hover & Category Spotlight
+   ------------------------------------------------------------------------- */
+/* Chip Hover: lift 1px, brighten text & border, red dot, dim siblings */
+.spec-block__chips:hover .spec-chip {
+  opacity: 0.58;
+}
+
+.spec-block__chips .spec-chip:hover {
+  opacity: 1;
+  color: var(--text-light, #F5F2EE);
+  border-color: rgba(245, 242, 238, 0.36);
+  transform: translateY(-1px);
+}
+
+.spec-block__chips .spec-chip:hover .spec-chip__dot {
+  background-color: var(--accent, #E8283C);
+}
+
+/* Category Spotlight: hover or keyboard focus on block lights up chips, corner ticks turn red */
+.spec-block--spotlight .spec-block__tick {
+  color: var(--accent, #E8283C);
+}
+
+.spec-block--spotlight .spec-block__hairline {
+  background-color: rgba(232, 40, 60, 0.45);
+}
+
+.spec-block--spotlight .spec-chip {
+  border-color: rgba(245, 242, 238, 0.22);
+}
+
+/* Dim other categories to ~35% when any category is spotlighted */
+.arsenal-grid--has-spotlight .spec-block:not(.spec-block--spotlight) {
+  opacity: 0.35;
+}
+
+/* Red outline for keyboard focus */
+.spec-block:focus-visible {
+  outline: 2px solid var(--accent, #E8283C);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Decoded Text Transitions */
+.decoded-animating {
+  opacity: 0.75;
+  color: var(--accent, #E8283C);
+  letter-spacing: 0.08em;
+}
+
+.decoded-resolved {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+   Mobile & Responsive Layout (< 900px)
+   ------------------------------------------------------------------------- */
+@media (max-width: 899px) {
+  .arsenal-section {
+    padding: 4.5rem 0 6rem;
+  }
+
+  .arsenal-grid {
+    grid-template-columns: 1fr;
+    gap: 2.25rem;
+  }
+
+  .arsenal-grid--reveal {
+    display: none;
+  }
+
+  /* Single row marquee on mobile */
+  .arsenal-marquee__row--bottom {
+    display: none;
+  }
+
+  .arsenal-marquee__track {
+    gap: 36px;
+  }
+
+  .spec-block {
+    padding: 1.5rem 0.5rem 0.5rem;
+  }
+
+  /* Disable hover dimming on touch devices */
+  .spec-block__chips:hover .spec-chip {
+    opacity: 1;
+  }
+
+  .arsenal-grid--has-spotlight .spec-block:not(.spec-block--spotlight) {
+    opacity: 1;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Reduced Motion (prefers-reduced-motion: reduce)
+   ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .arsenal-marquee__track {
+    animation: none !important;
+  }
+
+  .arsenal-marquee {
+    mask-image: none;
+    -webkit-mask-image: none;
+    overflow-x: auto;
+  }
+
+  .arsenal-grid--reveal {
+    display: none;
+  }
+
+  .spec-block__hairline {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .spec-chip {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

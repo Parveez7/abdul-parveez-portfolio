@@ -10,6 +10,7 @@ import About from './components/sections/About'
 import Filler from './components/sections/Filler'
 import Featured from './components/sections/Featured'
 import Journey from './components/sections/Journey'
+import Arsenal from './components/sections/Arsenal'
 import { useSectionScrollTrigger } from './hooks/useSectionScrollTrigger'
 
 /**
@@ -47,7 +48,7 @@ function PortfolioRoot() {
       {/* 2. Fixed Top Navbar (monogram in Hero, crossfades to full name on scroll) */}
       <Navbar />
 
-      {/* 3. Fixed Left Section Index (01..05, hidden on Hero & mobile) */}
+      {/* 3. Fixed Left Section Index (01..06, hidden on Hero & mobile) */}
       <SectionIndex />
 
       {/* Optional Debug Panel (available via ?debug query parameter) */}
@@ -70,8 +71,11 @@ function PortfolioRoot() {
         {/* 04: The Journey (3D Camera-on-a-Rail Matte Editorial Timeline) */}
         <Journey />
 
-        {/* 05: Contact Shell */}
-        <SectionShell id="contact" theme="dark" index="05" />
+        {/* 05: Technical Arsenal (Precision Blueprint Spec Sheet & Logo Marquee) */}
+        <Arsenal />
+
+        {/* 06: Contact Shell */}
+        <SectionShell id="contact" theme="dark" index="06" />
       </main>
     </>
   )

@@ -15,16 +15,18 @@ export const SITE = {
     { id: 'projects', label: 'PROJECTS', href: '#projects' },
     { id: 'experience', label: 'EXPERIENCE', href: '#experience' },
     { id: 'achievements', label: 'ACHIEVEMENTS', href: '#experience' },
+    { id: 'skills', label: 'ARSENAL', href: '#skills' },
     { id: 'contact', label: 'CONTACT', href: '#contact' },
   ],
 
-  // Section Index (01 - 05) as specified in design brief & references
+  // Section Index (01 - 06) as specified in design brief & references
   sectionIndex: [
     { index: '01', id: 'about', label: 'About', targetTheme: 'light' },
     { index: '02', id: 'filler', label: 'Philosophy', targetTheme: 'dark' },
     { index: '03', id: 'projects', label: 'Projects', targetTheme: 'dark' },
-    { index: '04', id: 'experience', label: 'Experience & Achievements', targetTheme: 'dark' },
-    { index: '05', id: 'contact', label: 'Contact', targetTheme: 'dark' },
+    { index: '04', id: 'experience', label: 'Journey', targetTheme: 'dark' },
+    { index: '05', id: 'skills', label: 'Technical Arsenal', targetTheme: 'dark' },
+    { index: '06', id: 'contact', label: 'Contact', targetTheme: 'dark' },
   ],
 
   // Social / external profiles

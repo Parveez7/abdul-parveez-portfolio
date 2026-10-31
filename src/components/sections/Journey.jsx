@@ -411,11 +411,11 @@ export default function Journey() {
     [scrollToCardIndex]
   )
 
-  // Skip Timeline / Continue button: 1.6s expo ease to #contact
+  // Skip Timeline / Continue button: 1.6s expo ease to #skills
   const handleSkipTimeline = useCallback(() => {
     setIsChromeHidden(false)
     updateProgress('experience', 1)
-    scrollTo('#contact', {
+    scrollTo('#skills', {
       duration: 1.6,
       easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
     })
@@ -537,7 +537,7 @@ export default function Journey() {
         stateRef.current.isActive = false
         setIsChromeHidden(false)
         updateProgress('experience', 1)
-        setActiveSection('contact')
+        setActiveSection('skills')
         setActiveSectionIndex('05')
       },
       onLeaveBack: () => {
