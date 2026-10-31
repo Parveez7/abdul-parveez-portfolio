@@ -163,3 +163,4 @@ export const SKILLS_STATS = {
   toolsLabel: String(TOTAL_UNIQUE_SKILLS).padStart(2, '0') + ' TOOLS',
   headlineStats: `${String(TOTAL_DOMAINS).padStart(2, '0')} DOMAINS · ${String(TOTAL_UNIQUE_SKILLS).padStart(2, '0')} TOOLS`,
 }
+

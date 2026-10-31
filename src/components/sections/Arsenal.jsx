@@ -63,11 +63,11 @@ const ICON_MAP = {
 const DECODE_GLYPHS = '0123456789ABCDEF!@#$<>{}[]_/'
 
 /**
- * Text Decode component: resolves characters from random glyphs to final text
+ * Ultra-performant Text Decode component:
+ * Directly updates DOM textContent without causing React cascading re-renders!
  */
-function DecodedText({ text, active, duration = 650, delay = 0, className = '' }) {
-  const [displayText, setDisplayText] = useState(text)
-  const [isResolved, setIsResolved] = useState(false)
+function DecodedText({ text, active, duration = 500, delay = 0, className = '' }) {
+  const spanRef = useRef(null)
   const isReduced = useRef(false)
 
   useEffect(() => {
@@ -77,22 +77,25 @@ function DecodedText({ text, active, duration = 650, delay = 0, className = '' }
   }, [])
 
   useEffect(() => {
-    if (!active) return
-    if (isReduced.current) {
-      setDisplayText(text)
-      setIsResolved(true)
+    const el = spanRef.current
+    if (!el) return
+
+    if (!active || isReduced.current) {
+      el.textContent = text
+      el.className = 'decoded-resolved'
       return
     }
 
-    let start = null
-    let animFrame = null
-    const timer = setTimeout(() => {
-      const step = (now) => {
-        if (!start) start = now
-        const elapsed = now - start
-        const progress = Math.min(1, elapsed / duration)
+    el.className = 'decoded-animating'
+    const totalChars = text.length
+    const steps = Math.min(14, Math.max(6, Math.floor(duration / 40)))
+    const stepInterval = duration / steps
+    let currentStep = 0
 
-        const totalChars = text.length
+    const timer = setTimeout(() => {
+      const intervalId = setInterval(() => {
+        currentStep++
+        const progress = currentStep / steps
         const resolvedCount = Math.floor(progress * totalChars)
 
         let result = ''
@@ -103,36 +106,99 @@ function DecodedText({ text, active, duration = 650, delay = 0, className = '' }
           } else if (i < resolvedCount) {
             result += char
           } else {
-            const randomGlyph =
-              DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)]
-            result += randomGlyph
+            result += DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)]
           }
         }
 
-        setDisplayText(result)
+        if (el) el.textContent = result
 
-        if (progress < 1) {
-          animFrame = requestAnimationFrame(step)
-        } else {
-          setDisplayText(text)
-          setIsResolved(true)
+        if (currentStep >= steps) {
+          clearInterval(intervalId)
+          if (el) {
+            el.textContent = text
+            el.className = 'decoded-resolved'
+          }
         }
-      }
-      animFrame = requestAnimationFrame(step)
+      }, stepInterval)
+
+      return () => clearInterval(intervalId)
     }, delay)
 
-    return () => {
-      clearTimeout(timer)
-      if (animFrame) cancelAnimationFrame(animFrame)
-    }
+    return () => clearTimeout(timer)
   }, [active, text, duration, delay])
 
   return (
     <span className={className} aria-label={text}>
-      <span aria-hidden="true" className={isResolved ? 'decoded-resolved' : 'decoded-animating'}>
-        {displayText}
+      <span ref={spanRef} aria-hidden="true" className="decoded-resolved">
+        {text}
       </span>
     </span>
+  )
+}
+
+/**
+ * Isolated Stats Counter: Direct DOM update to prevent parent re-renders
+ */
+function StatsCounter({ active }) {
+  const domainsRef = useRef(null)
+  const toolsRef = useRef(null)
+
+  useEffect(() => {
+    if (!active) return
+    const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (isReduced) {
+      if (domainsRef.current) domainsRef.current.textContent = String(SKILLS_STATS.domainsCount).padStart(2, '0')
+      if (toolsRef.current) toolsRef.current.textContent = String(SKILLS_STATS.toolsCount).padStart(2, '0')
+      return
+    }
+
+    const duration = 650
+    const start = performance.now()
+    let rafId = null
+
+    const step = (now) => {
+      const progress = Math.min(1, (now - start) / duration)
+      const ease = 1 - Math.pow(1 - progress, 3)
+
+      const curDomains = Math.round(SKILLS_STATS.domainsCount * ease)
+      const curTools = Math.round(SKILLS_STATS.toolsCount * ease)
+
+      if (domainsRef.current) domainsRef.current.textContent = String(curDomains).padStart(2, '0')
+      if (toolsRef.current) toolsRef.current.textContent = String(curTools).padStart(2, '0')
+
+      if (progress < 1) {
+        rafId = requestAnimationFrame(step)
+      } else {
+        if (domainsRef.current) domainsRef.current.textContent = String(SKILLS_STATS.domainsCount).padStart(2, '0')
+        if (toolsRef.current) toolsRef.current.textContent = String(SKILLS_STATS.toolsCount).padStart(2, '0')
+      }
+    }
+
+    rafId = requestAnimationFrame(step)
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [active])
+
+  return (
+    <div className="arsenal-header__stats" aria-label={SKILLS_STATS.headlineStats}>
+      <span className="arsenal-header__stats-item">
+        <span ref={domainsRef} className="arsenal-header__stats-num">
+          00
+        </span>{' '}
+        DOMAINS
+      </span>
+      <span className="arsenal-header__stats-dot" aria-hidden="true">
+        ·
+      </span>
+      <span className="arsenal-header__stats-item">
+        <span ref={toolsRef} className="arsenal-header__stats-num">
+          00
+        </span>{' '}
+        TOOLS
+      </span>
+    </div>
   )
 }
 
@@ -175,9 +241,9 @@ function MarqueeMark({ tool }) {
 
 export default function Arsenal() {
   const sectionRef = useRef(null)
-  const gridRevealRef = useRef(null)
+  const spotlightRef = useRef(null)
   const headerRef = useRef(null)
-  const blocksRef = useRef([])
+  const gridContainerRef = useRef(null)
 
   const {
     setActiveTheme,
@@ -189,22 +255,21 @@ export default function Arsenal() {
   const [headerTriggered, setHeaderTriggered] = useState(false)
   const [blocksTriggered, setBlocksTriggered] = useState(false)
   const [spotlightedCat, setSpotlightedCat] = useState(null)
-  const [statsCount, setStatsCount] = useState({ domains: 0, tools: 0 })
-  const [isOffscreen, setIsOffscreen] = useState(false)
+  const [isOffscreen, setIsOffscreen] = useState(true)
 
-  // Cursor blueprint grid reveal with lerped follow (desktop pointer only)
+  // Lightweight hardware-accelerated cursor spotlight (GPU transform translate3d, 0 mask re-rasterization!)
   useEffect(() => {
     const sectionEl = sectionRef.current
-    const revealEl = gridRevealRef.current
-    if (!sectionEl || !revealEl) return
+    const spotEl = spotlightRef.current
+    if (!sectionEl || !spotEl) return
 
     const isPointerFine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
     if (!isPointerFine) return
 
-    let mouseX = 0
-    let mouseY = 0
-    let currentX = 0
-    let currentY = 0
+    let mouseX = -999
+    let mouseY = -999
+    let currentX = -999
+    let currentY = -999
     let rafId = null
     let isMoving = false
 
@@ -215,79 +280,52 @@ export default function Arsenal() {
 
       if (!isMoving) {
         isMoving = true
-        renderGrid()
+        renderSpotlight()
       }
     }
 
     const onPointerLeave = () => {
       isMoving = false
       if (rafId) cancelAnimationFrame(rafId)
+      if (spotEl) spotEl.style.opacity = '0'
     }
 
-    const renderGrid = () => {
-      currentX += (mouseX - currentX) * 0.15
-      currentY += (mouseY - currentY) * 0.15
+    const onPointerEnter = () => {
+      if (spotEl) spotEl.style.opacity = '1'
+    }
 
-      revealEl.style.setProperty('--mouse-x', `${currentX.toFixed(1)}px`)
-      revealEl.style.setProperty('--mouse-y', `${currentY.toFixed(1)}px`)
+    const renderSpotlight = () => {
+      if (currentX === -999) {
+        currentX = mouseX
+        currentY = mouseY
+      } else {
+        currentX += (mouseX - currentX) * 0.18
+        currentY += (mouseY - currentY) * 0.18
+      }
+
+      spotEl.style.transform = `translate3d(${currentX.toFixed(1)}px, ${currentY.toFixed(1)}px, 0) translate(-50%, -50%)`
 
       const dist = Math.hypot(mouseX - currentX, mouseY - currentY)
       if (isMoving || dist > 0.5) {
-        rafId = requestAnimationFrame(renderGrid)
+        rafId = requestAnimationFrame(renderSpotlight)
       } else {
         isMoving = false
       }
     }
 
+    sectionEl.addEventListener('pointerenter', onPointerEnter, { passive: true })
     sectionEl.addEventListener('pointermove', onPointerMove, { passive: true })
     sectionEl.addEventListener('pointerleave', onPointerLeave, { passive: true })
 
     return () => {
+      sectionEl.removeEventListener('pointerenter', onPointerEnter)
       sectionEl.removeEventListener('pointermove', onPointerMove)
       sectionEl.removeEventListener('pointerleave', onPointerLeave)
       if (rafId) cancelAnimationFrame(rafId)
     }
   }, [])
 
-  // Stats number count-up animation when heading enters viewport
-  useEffect(() => {
-    if (!headerTriggered) return
-    const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (isReduced) {
-      setStatsCount({
-        domains: SKILLS_STATS.domainsCount,
-        tools: SKILLS_STATS.toolsCount,
-      })
-      return
-    }
-
-    const duration = 750
-    const start = performance.now()
-
-    const step = (now) => {
-      const progress = Math.min(1, (now - start) / duration)
-      // Ease out cubic
-      const ease = 1 - Math.pow(1 - progress, 3)
-
-      setStatsCount({
-        domains: Math.round(SKILLS_STATS.domainsCount * ease),
-        tools: Math.round(SKILLS_STATS.toolsCount * ease),
-      })
-
-      if (progress < 1) {
-        requestAnimationFrame(step)
-      } else {
-        setStatsCount({
-          domains: SKILLS_STATS.domainsCount,
-          tools: SKILLS_STATS.toolsCount,
-        })
-      }
-    }
-
-    requestAnimationFrame(step)
-  }, [headerTriggered])
-
-  // ScrollTrigger for Section Progress, Header Decode, and Category Blocks Entrance
+  // ScrollTrigger for Section Navigation and Entrance Transitions
   useEffect(() => {
     const sectionEl = sectionRef.current
     if (!sectionEl) return
@@ -320,7 +358,7 @@ export default function Arsenal() {
       },
     })
 
-    // 2. Heading entrance trigger (at ~85% viewport)
+    // 2. Heading entrance trigger
     const stHeader = ScrollTrigger.create({
       trigger: headerRef.current,
       start: 'top 85%',
@@ -330,9 +368,9 @@ export default function Arsenal() {
       },
     })
 
-    // 3. Category Grid Blocks entrance trigger (at ~80% viewport)
+    // 3. Category Grid Blocks entrance trigger
     const stGrid = ScrollTrigger.create({
-      trigger: sectionEl.querySelector('.arsenal-grid'),
+      trigger: gridContainerRef.current,
       start: 'top 82%',
       once: true,
       onEnter: () => {
@@ -369,15 +407,15 @@ export default function Arsenal() {
       <span id="arsenal" className="arsenal-section__anchor" aria-hidden="true" />
       <span id="technical-arsenal" className="arsenal-section__anchor" aria-hidden="true" />
 
-      {/* 1. Backdrop Vignette & Static Film Grain */}
+      {/* 1. Backdrop Vignette & Static Film Grain (Normal Blend Mode = 0 GPU Overload) */}
       <div className="arsenal-section__vignette" aria-hidden="true" />
       <div className="arsenal-section__grain" aria-hidden="true" />
 
-      {/* 2. Blueprint Grid: 1px lines every 64px (Base 4% + Interactive 14% Cursor Reveal) */}
+      {/* 2. Precision Blueprint Grid & Hardware-Accelerated Cursor Spotlight */}
       <div className="arsenal-grid--base" aria-hidden="true" />
       <div
-        ref={gridRevealRef}
-        className="arsenal-grid--reveal"
+        ref={spotlightRef}
+        className="arsenal-grid__spotlight"
         aria-hidden="true"
       />
 
@@ -391,7 +429,7 @@ export default function Arsenal() {
               <DecodedText
                 text="05   TECHNICAL ARSENAL"
                 active={headerTriggered}
-                duration={550}
+                duration={450}
               />
             </span>
             <span className="arsenal-header__rule" aria-hidden="true" />
@@ -403,8 +441,8 @@ export default function Arsenal() {
               <DecodedText
                 text="TECHNICAL"
                 active={headerTriggered}
-                duration={700}
-                delay={80}
+                duration={550}
+                delay={60}
               />
             </span>
             <span className="arsenal-header__title-arsenal">Arsenal</span>
@@ -417,24 +455,8 @@ export default function Arsenal() {
             The tools, frameworks and languages I use to turn ideas into working products.
           </p>
 
-          {/* Tracked Caps Dynamic Stats Line */}
-          <div className="arsenal-header__stats" aria-label={SKILLS_STATS.headlineStats}>
-            <span className="arsenal-header__stats-item">
-              <span className="arsenal-header__stats-num">
-                {String(statsCount.domains).padStart(2, '0')}
-              </span>{' '}
-              DOMAINS
-            </span>
-            <span className="arsenal-header__stats-dot" aria-hidden="true">
-              ·
-            </span>
-            <span className="arsenal-header__stats-item">
-              <span className="arsenal-header__stats-num">
-                {String(statsCount.tools).padStart(2, '0')}
-              </span>{' '}
-              TOOLS
-            </span>
-          </div>
+          {/* Dynamic Stats Line (Isolated from Parent Render Loop) */}
+          <StatsCounter active={headerTriggered} />
         </header>
 
         {/* 4. Two-Row Seamless Monochrome Logo Marquee */}
@@ -447,9 +469,6 @@ export default function Arsenal() {
           </ul>
 
           <div className="arsenal-marquee" aria-hidden="true">
-            {/* Fade masks at left and right edges */}
-            <div className="arsenal-marquee__mask" />
-
             {/* Row 1: Leftward Scrolling (~70s) */}
             <div className="arsenal-marquee__row arsenal-marquee__row--top">
               <div className="arsenal-marquee__track arsenal-marquee__track--left">
@@ -472,19 +491,19 @@ export default function Arsenal() {
 
         {/* 5. Categorized "Spec Sheet" Grid (2 cols x 3 rows on Desktop, 1 col Mobile) */}
         <div
+          ref={gridContainerRef}
           className={`arsenal-grid ${
             spotlightedCat ? 'arsenal-grid--has-spotlight' : ''
           }`}
         >
           {SKILL_CATEGORIES.map((cat, idx) => {
             const isLeftCol = idx % 2 === 0
-            const colDelay = isLeftCol ? 0 : 90
+            const colDelay = isLeftCol ? 0 : 80
             const isSpotlighted = spotlightedCat === cat.id
 
             return (
               <article
                 key={cat.id}
-                ref={(el) => (blocksRef.current[idx] = el)}
                 tabIndex={0}
                 onMouseEnter={() => setSpotlightedCat(cat.id)}
                 onMouseLeave={() => setSpotlightedCat(null)}
@@ -519,8 +538,8 @@ export default function Arsenal() {
                       <DecodedText
                         text={cat.title.toUpperCase()}
                         active={blocksTriggered}
-                        duration={450}
-                        delay={colDelay + 60}
+                        duration={380}
+                        delay={colDelay + 40}
                       />
                     </h3>
                   </div>
@@ -532,7 +551,7 @@ export default function Arsenal() {
                 {/* Skill Chips: Solid Matte #131316, 1px Border, 6px Radius, Leading Dot */}
                 <ul className="spec-block__chips" aria-label={`${cat.title} skills`}>
                   {cat.items.map((skill, chipIdx) => {
-                    const chipDelay = colDelay + 140 + Math.min(chipIdx * 25, 450)
+                    const chipDelay = colDelay + 100 + Math.min(chipIdx * 20, 360)
                     return (
                       <li
                         key={skill}
