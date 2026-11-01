@@ -21,6 +21,7 @@ const NUM_RED_BUCKETS = 2
 /**
  * High-performance Canvas 2D Particle Stage Engine.
  * - Zero object allocations in the frame loop (100% TypedArrays).
+ * - Per-scene particle counts & sizes with smooth morph interpolation.
  * - Batched path rendering grouped by colour/alpha bucket.
  * - Synced to gsap.ticker alongside Lenis.
  */
@@ -34,14 +35,20 @@ export class ParticleEngine {
     this.isReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     this.isTouchDevice = window.matchMedia('(pointer: coarse)').matches
 
-    // Viewport & DPR
+    // Viewport & DPR (capped at 2)
     this.vw = window.innerWidth
     this.vh = window.innerHeight
     this.dpr = Math.min(PARTICLE_CONFIG.perf.maxDpr, window.devicePixelRatio || 1)
 
-    // Determine initial particle count from viewport breakpoint
-    this.maxCount = this._computeTargetCount(this.vw)
-    this.activeCount = this.maxCount
+    // Compute maximum pool buffer size and initial active count
+    this.maxCount = this._computeMaxBufferCount(this.vw)
+    this.activeCount = this._computeSceneCount('hero', this.vw)
+
+    // Per-scene visual sizing & alpha boost state
+    this.currentParticleSize = PARTICLE_CONFIG.scenes.hero.particleSize
+    this.targetParticleSize = PARTICLE_CONFIG.scenes.hero.particleSize
+    this.currentAlphaBoost = PARTICLE_CONFIG.scenes.hero.alphaBoost
+    this.targetAlphaBoost = PARTICLE_CONFIG.scenes.hero.alphaBoost
 
     // State values (0..1)
     this.currentScene = 'hero'
@@ -94,10 +101,25 @@ export class ParticleEngine {
     gsap.ticker.add(this._tickerFn)
   }
 
-  _computeTargetCount(width) {
-    if (width >= 1024) return PARTICLE_CONFIG.counts.desktop
-    if (width >= 768) return PARTICLE_CONFIG.counts.tablet
-    return PARTICLE_CONFIG.counts.mobile
+  _computeSceneCount(sceneName, width) {
+    const isHero = sceneName === 'hero'
+    const counts = isHero
+      ? PARTICLE_CONFIG.scenes.hero.counts
+      : PARTICLE_CONFIG.scenes.about.counts
+    if (width >= 1024) return counts.desktop
+    if (width >= 768) return counts.tablet
+    return counts.mobile
+  }
+
+  _computeMaxBufferCount(width) {
+    const heroCounts = PARTICLE_CONFIG.scenes.hero.counts
+    const aboutCounts = PARTICLE_CONFIG.scenes.about.counts
+    const maxDesktop = Math.max(heroCounts.desktop, aboutCounts.desktop)
+    const maxTablet = Math.max(heroCounts.tablet, aboutCounts.tablet)
+    const maxMobile = Math.max(heroCounts.mobile, aboutCounts.mobile)
+    if (width >= 1024) return maxDesktop
+    if (width >= 768) return maxTablet
+    return maxMobile
   }
 
   _allocateBuffers(n) {
@@ -112,6 +134,7 @@ export class ParticleEngine {
     this.nextTy = new Float32Array(n)
 
     this.size = new Float32Array(n)
+    this.baseScale = new Float32Array(n)
     this.alpha = new Float32Array(n)
     this.targetAlpha = new Float32Array(n)
     this.nextAlpha = new Float32Array(n)
@@ -149,11 +172,12 @@ export class ParticleEngine {
       this.type[i] = isRed
 
       if (isRed) {
-        this.size[i] = 1.25 + Math.pow(Math.random(), 1.6) * 2.1
+        this.baseScale[i] = 1.15 + Math.pow(Math.random(), 1.6) * 0.65
       } else {
-        this.size[i] = 0.85 + Math.pow(Math.random(), 2.0) * 1.45
+        this.baseScale[i] = 0.85 + Math.pow(Math.random(), 2.0) * 0.45
       }
 
+      this.size[i] = this.baseScale[i] * this.currentParticleSize
       this.alpha[i] = 0.0
       this.targetAlpha[i] = 0.0
       this.nextAlpha[i] = 0.45
@@ -201,8 +225,7 @@ export class ParticleEngine {
         const prevH = this.vh
         this._resizeCanvas()
 
-        const desiredCount = this._computeTargetCount(this.vw)
-        this.activeCount = Math.min(this.maxCount, desiredCount)
+        this.activeCount = this._computeSceneCount(this.currentScene, this.vw)
 
         const scaleX = this.vw / Math.max(1, prevW)
         const scaleY = this.vh / Math.max(1, prevH)
@@ -317,9 +340,11 @@ export class ParticleEngine {
     const img = this.images.get(sceneName)
     if (!img) return null
 
+    const sceneActiveCount = this._computeSceneCount(sceneName, this.vw)
     const targets = buildTargets(img, {
       sceneName,
       count: this.maxCount,
+      activeCount: sceneActiveCount,
       viewportWidth: this.vw,
       viewportHeight: this.vh,
     })
@@ -388,6 +413,11 @@ export class ParticleEngine {
 
     this.heroEntrancePlayed = true
     this.currentScene = 'hero'
+    this.activeCount = this._computeSceneCount('hero', this.vw)
+    this.currentParticleSize = PARTICLE_CONFIG.scenes.hero.particleSize
+    this.targetParticleSize = PARTICLE_CONFIG.scenes.hero.particleSize
+    this.currentAlphaBoost = PARTICLE_CONFIG.scenes.hero.alphaBoost
+    this.targetAlphaBoost = PARTICLE_CONFIG.scenes.hero.alphaBoost
 
     if (this.isReducedMotion) {
       this._applyTargetsImmediate('hero')
@@ -450,6 +480,12 @@ export class ParticleEngine {
     const scatterBump = opts.scatterBump ?? 0.25
 
     this.currentScene = name
+    const isHero = name === 'hero'
+    const sceneCfg = isHero ? PARTICLE_CONFIG.scenes.hero : PARTICLE_CONFIG.scenes.about
+    this.targetParticleSize = sceneCfg.particleSize
+    this.targetAlphaBoost = sceneCfg.alphaBoost
+    this.activeCount = this._computeSceneCount(name, this.vw)
+
     const targets = this._buildSceneTargetsSync(name)
     if (!targets) return
 
@@ -491,6 +527,21 @@ export class ParticleEngine {
 
     this.currentScene = t >= 0.5 ? toName : fromName
 
+    const fromIsHero = fromName === 'hero'
+    const toIsHero = toName === 'hero'
+    const fromCfg = fromIsHero ? PARTICLE_CONFIG.scenes.hero : PARTICLE_CONFIG.scenes.about
+    const toCfg = toIsHero ? PARTICLE_CONFIG.scenes.hero : PARTICLE_CONFIG.scenes.about
+
+    const easeT = t * t * (3 - 2 * t)
+    this.currentParticleSize = fromCfg.particleSize + (toCfg.particleSize - fromCfg.particleSize) * easeT
+    this.targetParticleSize = this.currentParticleSize
+    this.currentAlphaBoost = fromCfg.alphaBoost + (toCfg.alphaBoost - fromCfg.alphaBoost) * easeT
+    this.targetAlphaBoost = this.currentAlphaBoost
+
+    const fromCount = this._computeSceneCount(fromName, this.vw)
+    const toCount = this._computeSceneCount(toName, this.vw)
+    this.activeCount = Math.round(fromCount + (toCount - fromCount) * easeT)
+
     const fx = fromTargets.x
     const fy = fromTargets.y
     const fb = fromTargets.brightness
@@ -506,12 +557,11 @@ export class ParticleEngine {
       // Deterministic per-particle stagger from seed (0..0.42)
       const pStagger = (this.seed[i] * 0.15915494) * staggerSpan
       const localT = Math.max(0, Math.min(1, (t - pStagger) * invSpan))
-      // Smoothstep easing per particle
-      const easeT = localT * localT * (3 - 2 * localT)
+      const pEase = localT * localT * (3 - 2 * localT)
 
-      this.tx[i] = fx[i] + (txArr[i] - fx[i]) * easeT
-      this.ty[i] = fy[i] + (tyArr[i] - fy[i]) * easeT
-      this.targetAlpha[i] = fb[i] + (tb[i] - fb[i]) * easeT
+      this.tx[i] = fx[i] + (txArr[i] - fx[i]) * pEase
+      this.ty[i] = fy[i] + (tyArr[i] - fy[i]) * pEase
+      this.targetAlpha[i] = fb[i] + (tb[i] - fb[i]) * pEase
       this.pendingRetarget[i] = 0
 
       if (this.isReducedMotion) {
@@ -548,7 +598,7 @@ export class ParticleEngine {
    * Sets overall stage visibility (0..1). Pauses loop when 0.
    */
   setVisibility(value) {
-    this.visibility = Math.max(0, Math.min(1, Number(value) ?? 1))
+    this.visibility = Math.max(0, Math.min(1, Number(value) || 0))
     this.canvas.style.opacity = String(this.visibility)
   }
 
@@ -594,12 +644,13 @@ export class ParticleEngine {
     this.avgFrameMs = this.avgFrameMs * 0.92 + dtMs * 0.08
     this.fps = Math.round(1000 / Math.max(1, this.avgFrameMs))
 
+    // Automatic quality scaling: reduce count if frame time stays above 20ms for 2s
     if (dtMs > PARTICLE_CONFIG.perf.maxFrameTimeMs) {
       this.slowFrameAccumMs += dtMs
       if (this.slowFrameAccumMs >= PARTICLE_CONFIG.perf.sustainedThresholdMs) {
         this.slowFrameAccumMs = 0
         const nextCount = Math.max(
-          PARTICLE_CONFIG.counts.minFallback,
+          PARTICLE_CONFIG.minFallback,
           Math.floor(this.activeCount * PARTICLE_CONFIG.perf.scaleDownFactor)
         )
         this.activeCount = nextCount
@@ -611,6 +662,10 @@ export class ParticleEngine {
     const dtSec = Math.min(0.05, dtMs * 0.001)
     this.transitionTimer += dtSec
     this.transitionPulse = Math.max(0, this.transitionPulse - dtSec * 1.15)
+
+    // Smoothly ease particle size and alpha boost toward targets
+    this.currentParticleSize += (this.targetParticleSize - this.currentParticleSize) * 0.12
+    this.currentAlphaBoost += (this.targetAlphaBoost - this.currentAlphaBoost) * 0.12
 
     // Smooth pointer coordinates with lerp & compute subtle portrait parallax (9px Hero, 12px About)
     if (this.pointerActive && !this.isTouchDevice) {
@@ -662,7 +717,8 @@ export class ParticleEngine {
   }
 
   _stepPhysics(time, effectiveScatter) {
-    const n = this.activeCount
+    const n = this.maxCount
+    const active = this.activeCount
     const {
       x,
       y,
@@ -714,7 +770,10 @@ export class ParticleEngine {
         vy[i] += Math.sin(curlAngle) * 3.4
       }
 
-      const depthMod = 0.65 + targetAlpha[i] * 0.45
+      // If particle index is beyond active count, fade to 0 alpha
+      const effectiveTargetAlpha = i < active ? targetAlpha[i] : 0.0
+
+      const depthMod = 0.65 + effectiveTargetAlpha * 0.45
       let destX = tx[i] + parallaxX * depthMod
       let destY = ty[i] + parallaxY * depthMod
 
@@ -732,7 +791,7 @@ export class ParticleEngine {
       let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
       let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
 
-      if (hasPointer) {
+      if (hasPointer && effectiveTargetAlpha > 0.05) {
         const cdx = x[i] - px
         if (cdx > -cursorRadius && cdx < cursorRadius) {
           const cdy = y[i] - py
@@ -754,17 +813,17 @@ export class ParticleEngine {
       x[i] += nvx
       y[i] += nvy
 
-      alpha[i] += (targetAlpha[i] - alpha[i]) * 0.085
+      alpha[i] += (effectiveTargetAlpha - alpha[i]) * 0.085
     }
   }
 
   _drawBatches(midCrossover = 0) {
     const ctx = this.ctx
-    const n = this.activeCount
+    const n = this.maxCount
     const {
       x,
       y,
-      size,
+      baseScale,
       alpha,
       type,
       primaryBuckets,
@@ -800,12 +859,12 @@ export class ParticleEngine {
     const isMobileAbout = this.vw < 900 && t > 0.1
     const mobileAttenuation = isMobileAbout ? 1 - t * 0.65 : 1.0
 
-    const opacityBoost = (1.0 + t * 0.35 + midCrossover * 0.22) * mobileAttenuation
-    const sizeBoost = 1.0 + midCrossover * 0.36
+    const opacityBoost = (1.0 + t * 0.35 + midCrossover * 0.22) * mobileAttenuation * this.currentAlphaBoost
+    const particleScale = this.currentParticleSize * (1.0 + midCrossover * 0.36)
 
     for (let i = 0; i < n; i++) {
       const a = alpha[i] * opacityBoost
-      if (a < 0.04) continue
+      if (a < 0.035) continue
 
       if (useRedBuckets && type[i] === 1) {
         const rb = a > 0.55 ? 1 : 0
@@ -817,7 +876,7 @@ export class ParticleEngine {
       }
     }
 
-    const bucketAlphas = [0.22, 0.44, 0.68, 0.92]
+    const bucketAlphas = [0.24, 0.48, 0.72, 0.94]
     for (let b = 0; b < NUM_PRIMARY_BUCKETS; b++) {
       const count = primaryBucketCounts[b]
       if (count === 0) continue
@@ -829,7 +888,7 @@ export class ParticleEngine {
 
       for (let k = 0; k < count; k++) {
         const i = list[k]
-        const s = size[i] * sizeBoost
+        const s = baseScale[i] * particleScale
         const half = s * 0.5
         ctx.rect(x[i] - half, y[i] - half, s, s)
       }
@@ -849,7 +908,7 @@ export class ParticleEngine {
 
         for (let k = 0; k < count; k++) {
           const i = list[k]
-          const r = size[i] * sizeBoost * 0.65
+          const r = baseScale[i] * particleScale * 0.65
           const px = x[i]
           const py = y[i]
           ctx.moveTo(px + r, py)

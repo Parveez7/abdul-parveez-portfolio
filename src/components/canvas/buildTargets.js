@@ -7,6 +7,8 @@
  * 3. Samples target positions weighted by luminance and edge contrast, returning { x, y, brightness } Float32Arrays.
  */
 
+import { HERO_PORTRAIT_SCALE } from './particleConfig.js'
+
 let sharedOffscreenCanvas = null
 let sharedOffscreenCtx = null
 
@@ -43,25 +45,34 @@ function createRng(seed = 1337) {
 export function computeSceneLayoutRect(sceneName, vw, vh, imgWidth, imgHeight) {
   const imgAspect = imgWidth / Math.max(1, imgHeight)
   const isMobile = vw < 700
-  const isTablet = vw >= 700 && vw < 1024
 
   if (sceneName === 'hero') {
     if (isMobile) {
-      const targetW = Math.min(vw * 1.15, vh * 0.62 * imgAspect)
+      // Mobile (< 700px): portrait is ~100-110% of viewport width (sides may crop slightly)
+      // and ~70-75% of viewport height, with name above and tagline below
+      const targetW = (vw * 1.05) / 0.574
       const targetH = targetW / imgAspect
       const x = (vw - targetW) * 0.5
-      const y = (vh - targetH) * 0.48
+      // Center vertically in hero zone
+      const y = (vh - targetH) * 0.50
       return { x, y, width: targetW, height: targetH }
     }
 
-    // Desktop: Ensure entire head, shoulders, and arms sit fully within 100svh
-    // (no bottom 1-inch clipping when scrolling back up)
-    const desiredH = vh * 0.90
-    const targetW = Math.min(desiredH * imgAspect, isTablet ? vw * 0.82 : vw * 0.90)
-    const targetH = targetW / imgAspect
+    // Desktop & Tablet (>= 700px):
+    // Target: Head-and-torso portrait spans ~90-95% of viewport height (vh * 0.925)
+    // with the crown of the head about 10-12% from the top (vh * 0.11),
+    // and the torso running down to the bottom edge, fading out gently over the last ~15%.
+    // In portrait-original-photo.png:
+    // Figure v spans from 0.198 (crown) to 0.980 (torso bottom) => height factor = 0.782
+    // Figure u spans from 0.205 to 0.779 => width factor = 0.574
+    // Base figure height: vh * 0.634 * HERO_PORTRAIT_SCALE (1.46 => ~92.5% of vh)
+    const figureH = vh * 0.634 * HERO_PORTRAIT_SCALE
+    const targetH = figureH / 0.782
+    const targetW = targetH * imgAspect
     const x = (vw - targetW) * 0.5
-    // Anchor so bottom sits at vh * 0.95 (above scroll cue, fully visible)
-    const y = vh * 0.95 - targetH
+    // Anchor crown at 11% from top
+    const crownY = vh * 0.11
+    const y = crownY - 0.198 * targetH
     return { x, y, width: targetW, height: targetH }
   }
 
@@ -96,7 +107,8 @@ export function computeSceneLayoutRect(sceneName, vw, vh, imgWidth, imgHeight) {
  * @param {HTMLImageElement|ImageBitmap} image - Loaded source image
  * @param {Object} options
  * @param {string} options.sceneName - 'hero' | 'pose1' | 'pose2' | 'pose3'
- * @param {number} options.count - Number of particles in the pool (N)
+ * @param {number} options.count - Total pool buffer size (N)
+ * @param {number} [options.activeCount] - Active particle count for this specific scene
  * @param {number} options.viewportWidth - Current viewport width in CSS px
  * @param {number} options.viewportHeight - Current viewport height in CSS px
  * @param {number} [options.threshold=15] - Minimum brightness threshold (0..255)
@@ -106,7 +118,8 @@ export function buildTargets(image, options = {}) {
   const t0 = performance.now()
   const {
     sceneName = 'hero',
-    count = 24000,
+    count = 42000,
+    activeCount = options.count || 42000,
     viewportWidth = window.innerWidth,
     viewportHeight = window.innerHeight,
     threshold = 15,
@@ -119,7 +132,7 @@ export function buildTargets(image, options = {}) {
   // 1. Compute target layout rectangle in viewport coordinates
   const rect = computeSceneLayoutRect(sceneName, viewportWidth, viewportHeight, imgW, imgH)
 
-  const maxSampleDim = isHero ? 560 : 480
+  const maxSampleDim = isHero ? 600 : 480
   const scale = Math.min(1, maxSampleDim / Math.max(imgW, imgH))
   const sampleW = Math.max(64, Math.round(imgW * scale))
   const sampleH = Math.max(64, Math.round(imgH * scale))
@@ -164,14 +177,14 @@ export function buildTargets(image, options = {}) {
   for (let py = 2; py < sampleH - 2; py++) {
     const v = py / sampleH
 
-    // For hero portrait: gentle soft fade at bottom (v > 0.88 -> 0.98), floor at 0.38
-    // so the bottom 1 inch of the avatar stays visible upon scrolling back up
+    // For hero portrait: gentle soft fade at bottom (v > 0.85 -> 0.98), floor at 0.38
+    // so torso fades out gently over the last ~15%
     let bottomFade = 1.0
     if (isHero) {
       if (v > 0.98) continue
-      if (v > 0.88) {
-        const tFade = (v - 0.88) / 0.10
-        bottomFade = Math.max(0.38, 1 - Math.pow(tFade, 1.4) * 0.62)
+      if (v > 0.85) {
+        const tFade = (v - 0.85) / 0.13
+        bottomFade = Math.max(0.35, 1 - Math.pow(tFade, 1.4) * 0.65)
       }
     }
 
@@ -180,6 +193,22 @@ export function buildTargets(image, options = {}) {
       const u = px / sampleW
       const i = rowOffset + px
       const lum = lumBuf[i]
+
+      // Soft alpha falloff on outer ~12% of portrait's width so particles don't clutter behind name/tagline
+      let sideFade = 1.0
+      if (isHero) {
+        const figMinU = 0.205
+        const figMaxU = 0.779
+        const figSpanU = figMaxU - figMinU
+        const edgeW = figSpanU * 0.12 // outer 12% of figure width
+        if (u < figMinU + edgeW) {
+          const t = Math.max(0, (u - figMinU) / edgeW)
+          sideFade = Math.max(0.12, Math.pow(t, 1.35))
+        } else if (u > figMaxU - edgeW) {
+          const t = Math.max(0, (figMaxU - u) / edgeW)
+          sideFade = Math.max(0.12, Math.pow(t, 1.35))
+        }
+      }
 
       const tl = lumBuf[i - sampleW - 1]
       const tc = lumBuf[i - sampleW]
@@ -252,6 +281,10 @@ export function buildTargets(image, options = {}) {
           weight = (nearBg * 1.1 + foldEdge + fabricTone) * bottomFade
           brightness = Math.min(1, Math.max(0.32, (0.32 + normEdge * 0.48 + normLum * 0.32) * bottomFade))
         }
+
+        // Apply soft side fade to outer 12% width
+        weight *= sideFade
+        brightness *= sideFade
       } else {
         // About poses (pose1, pose2, pose3):
         if (lum < threshold && edgeMag < 12) continue
@@ -267,7 +300,7 @@ export function buildTargets(image, options = {}) {
         candU[candCount] = u
         candV[candCount] = v
         candWeight[candCount] = weight
-        candBright[candCount] = Math.max(0.18, Math.min(1, brightness))
+        candBright[candCount] = Math.max(0.15, Math.min(1, brightness))
         candCount++
       }
     }
@@ -295,8 +328,9 @@ export function buildTargets(image, options = {}) {
     cdf[i] = runningSum
   }
 
+  const effectiveActiveCount = Math.min(count, activeCount)
   const dispersionShare = isHero ? 0.035 : 0.15
-  const figureCount = Math.floor(count * (1 - dispersionShare))
+  const figureCount = Math.floor(effectiveActiveCount * (1 - dispersionShare))
 
   const cellW = rect.width / sampleW
   const cellH = rect.height / sampleH
@@ -331,8 +365,8 @@ export function buildTargets(image, options = {}) {
     outBrightness[i] = candBright[cIdx]
   }
 
-  // Fill remaining atmospheric / right-edge dispersion specks
-  for (let i = figureCount; i < count; i++) {
+  // Fill remaining atmospheric / right-edge dispersion specks up to effectiveActiveCount
+  for (let i = figureCount; i < effectiveActiveCount; i++) {
     let cIdx = pickCandidateIndex(rng())
     if (!isHero) {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -359,6 +393,13 @@ export function buildTargets(image, options = {}) {
       outY[i] = baseY + spreadVert
       outBrightness[i] = 0.28 + rng() * 0.68
     }
+  }
+
+  // Park any particles beyond effectiveActiveCount invisible (alpha 0)
+  for (let i = effectiveActiveCount; i < count; i++) {
+    outX[i] = rect.x + (rng() - 0.5) * rect.width * 0.8
+    outY[i] = rect.y + (rng() - 0.5) * rect.height * 0.8
+    outBrightness[i] = 0.0
   }
 
   const durationMs = performance.now() - t0

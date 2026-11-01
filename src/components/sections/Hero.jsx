@@ -119,7 +119,7 @@ export default function Hero({ isLoaded = false }) {
       id="hero"
       data-theme="dark"
       className="hero-section"
-      aria-label={`${SITE.name} — ${SITE.tagline}`}
+      aria-label={`${SITE.name} — ${SITE.heroTagline}`}
     >
       {/* Subtle radial center vignette behind the particle stage */}
       <div className="hero-section__vignette" aria-hidden="true" />
@@ -136,7 +136,7 @@ export default function Hero({ isLoaded = false }) {
 
         {/* Right (Desktop) / Bottom (Mobile): Tagline + Thin rule */}
         <div ref={rightBlockRef} className="hero-section__role">
-          <p className="hero-section__tagline">{SITE.tagline}</p>
+          <p className="hero-section__tagline">{SITE.heroTagline}</p>
           <span className="hero-section__rule hero-section__rule--right" aria-hidden="true" />
         </div>
       </div>

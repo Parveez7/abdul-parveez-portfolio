@@ -7,6 +7,7 @@ export const SITE = {
   nameUpper: 'ABDUL PARVEEZ',
   monogram: 'AP',
   tagline: 'AI Developer · Data Enthusiast · Builder',
+  heroTagline: 'Developer - Data Intelligence',
   domain: 'abdulparveez.com',
   email: 'contact@abdulparvez.in',
   calendarUrl: 'https://cal.com',
