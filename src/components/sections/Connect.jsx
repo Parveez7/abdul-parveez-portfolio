@@ -44,7 +44,6 @@ export default function Connect() {
 
   // Interactive tooltip state
   const [activeTooltip, setActiveTooltip] = useState(null)
-  const [isColorForced, setIsColorForced] = useState(false)
   const [hasInteracted, setHasInteracted] = useState(false)
 
   // Internal mutable refs for 3D state
@@ -67,23 +66,6 @@ export default function Connect() {
     e.preventDefault()
     scrollTo('#hero', { duration: 1.8 })
   }, [scrollTo])
-
-  // Toggle avatar color (for accessibility & touch)
-  const toggleAvatarColor = useCallback(() => {
-    setHasInteracted(true)
-    setIsColorForced((prev) => {
-      const next = !prev
-      const u = stateRef.current.avatarUniforms
-      if (u) {
-        gsap.to(u.uHover, {
-          value: next ? 1.0 : 0.0,
-          duration: 0.7,
-          ease: 'power2.out',
-        })
-      }
-      return next
-    })
-  }, [])
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -136,14 +118,16 @@ export default function Connect() {
 
     // Layout configuration: LARGE prominent avatar matching the reference
     const isMobile = width < 900
-    const avatarPlaneHeight = isMobile ? 4.5 : 5.45
+    const isSmallMobile = width < 600
+
+    const avatarPlaneHeight = isSmallMobile ? 3.65 : isMobile ? 4.3 : 5.45
     const avatarAspect = 1024 / 576
     const avatarPlaneWidth = avatarPlaneHeight * avatarAspect
 
     const avatarX = isMobile ? 0 : 1.75
-    const avatarY = isMobile ? -1.05 : -1.0
+    const avatarY = isSmallMobile ? -0.85 : isMobile ? -1.05 : -1.0
     const headCenterX = isMobile ? 0 : 1.72
-    const headCenterY = isMobile ? 0.8 : 0.82
+    const headCenterY = isSmallMobile ? 0.62 : isMobile ? 0.75 : 0.82
 
     // -------------------------------------------------------------
     // 1. Avatar Plane with custom B&W to radial color wipe shader
@@ -232,8 +216,8 @@ export default function Connect() {
     arcGroup.position.set(headCenterX, headCenterY, 0.15) // Positioned in front of the avatar plane
     scene.add(arcGroup)
 
-    const orbitRadiusX = isMobile ? 1.85 : 2.45
-    const orbitRadiusY = isMobile ? 1.15 : 1.45
+    const orbitRadiusX = isSmallMobile ? 1.42 : isMobile ? 1.85 : 2.45
+    const orbitRadiusY = isSmallMobile ? 0.92 : isMobile ? 1.15 : 1.45
 
     // Visual dashed curve connecting the arc
     const arcCurve = new THREE.EllipseCurve(
@@ -283,9 +267,9 @@ export default function Connect() {
     })
 
     // Extruded rounded tile geometry (solid dark ceramic)
-    const tileW = 0.62
-    const tileH = 0.62
-    const tileRadius = 0.14
+    const tileW = isSmallMobile ? 0.50 : 0.62
+    const tileH = isSmallMobile ? 0.50 : 0.62
+    const tileRadius = isSmallMobile ? 0.11 : 0.14
     const tileShape = new THREE.Shape()
     const tx = -tileW / 2
     const ty = -tileH / 2
@@ -421,15 +405,13 @@ export default function Connect() {
         if (hit.uv) {
           avatarUniforms.uCursor.value.set(hit.uv.x, hit.uv.y)
         }
-        if (!isColorForced) {
-          gsap.to(avatarUniforms.uHover, {
+        gsap.to(avatarUniforms.uHover, {
             value: 1.0,
             duration: 0.7,
             ease: 'power2.out',
             overwrite: 'auto',
           })
-        }
-      } else if (state.isHoveringAvatar && !isColorForced) {
+      } else if (state.isHoveringAvatar) {
         state.isHoveringAvatar = false
         gsap.to(avatarUniforms.uHover, {
           value: 0.0,
@@ -460,15 +442,13 @@ export default function Connect() {
 
     const handlePointerLeave = () => {
       state.mouse.set(-999, -999)
-      if (!isColorForced) {
-        state.isHoveringAvatar = false
-        gsap.to(avatarUniforms.uHover, {
-          value: 0.0,
-          duration: 0.6,
-          ease: 'power2.inOut',
-          overwrite: 'auto',
-        })
-      }
+      state.isHoveringAvatar = false
+      gsap.to(avatarUniforms.uHover, {
+        value: 0.0,
+        duration: 0.6,
+        ease: 'power2.inOut',
+        overwrite: 'auto',
+      })
       setHoveredTile(-1)
     }
 
@@ -502,10 +482,25 @@ export default function Connect() {
       }
     }
 
-    // Tile click handler
-    const handleClick = () => {
-      if (state.hoveredIndex !== -1) {
-        const tile = tiles[state.hoveredIndex]
+    // Tile click/tap handler (supports both mouse click and direct touch tap)
+    const handleClick = (e) => {
+      let targetIndex = state.hoveredIndex
+      if (targetIndex === -1 && e && container) {
+        const rect = container.getBoundingClientRect()
+        const clientX = (e.clientX ?? e.changedTouches?.[0]?.clientX ?? 0) - rect.left
+        const clientY = (e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0) - rect.top
+        const mouseX = (clientX / rect.width) * 2 - 1
+        const mouseY = -(clientY / rect.height) * 2 + 1
+        state.raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera)
+        const tileMeshes = tiles.map((t) => t.mesh)
+        const tileHits = state.raycaster.intersectObjects(tileMeshes)
+        if (tileHits.length > 0) {
+          targetIndex = tiles.findIndex((t) => t.mesh === tileHits[0].object)
+        }
+      }
+
+      if (targetIndex !== -1) {
+        const tile = tiles[targetIndex]
         if (tile && tile.data.url) {
           if (tile.data.url.startsWith('mailto:')) {
             window.location.href = tile.data.url
@@ -516,12 +511,55 @@ export default function Connect() {
       }
     }
 
+    // Touch tap on avatar reveals color on mobile
+    const handleTouchStart = (e) => {
+      setHasInteracted(true)
+      const touch = e.touches?.[0]
+      if (!touch || !container) return
+      const rect = container.getBoundingClientRect()
+      const clientX = touch.clientX - rect.left
+      const clientY = touch.clientY - rect.top
+      state.mouse.x = (clientX / rect.width) * 2 - 1
+      state.mouse.y = -(clientY / rect.height) * 2 + 1
+
+      state.raycaster.setFromCamera(state.mouse, camera)
+      const avatarHits = state.raycaster.intersectObject(avatarMesh)
+      if (avatarHits.length > 0) {
+        state.isHoveringAvatar = true
+        const hit = avatarHits[0]
+        if (hit.uv) {
+          avatarUniforms.uCursor.value.set(hit.uv.x, hit.uv.y)
+        }
+        gsap.to(avatarUniforms.uHover, {
+          value: 1.0,
+          duration: 0.6,
+          ease: 'power2.out',
+          overwrite: 'auto',
+        })
+      }
+    }
+
+    const handleTouchEnd = () => {
+      if (state.isHoveringAvatar) {
+        gsap.to(avatarUniforms.uHover, {
+          value: 0.0,
+          duration: 1.2,
+          delay: 0.8,
+          ease: 'power2.inOut',
+          overwrite: 'auto',
+        })
+        state.isHoveringAvatar = false
+      }
+    }
+
     const rectWidth = () => container.clientWidth
     const rectHeight = () => container.clientHeight
 
     container.addEventListener('pointermove', handlePointerMove)
     container.addEventListener('pointerleave', handlePointerLeave)
     container.addEventListener('click', handleClick)
+    container.addEventListener('touchstart', handleTouchStart, { passive: true })
+    container.addEventListener('touchend', handleTouchEnd, { passive: true })
 
     // -------------------------------------------------------------
     // 4. Render & Animation Loop
@@ -609,6 +647,8 @@ export default function Connect() {
       container.removeEventListener('pointermove', handlePointerMove)
       container.removeEventListener('pointerleave', handlePointerLeave)
       container.removeEventListener('click', handleClick)
+      container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('touchend', handleTouchEnd)
 
       tileGeometry.dispose()
       ceramicMaterial.dispose()
@@ -616,7 +656,7 @@ export default function Connect() {
       avatarTexture.dispose()
       renderer.dispose()
     }
-  }, [isColorForced])
+  }, [])
 
   // Handle accessible anchor focus
   const handleAnchorFocus = (index) => {
@@ -734,19 +774,6 @@ export default function Connect() {
             </a>
           </div>
 
-          {/* Accessible Color Toggle Control */}
-          <div className="connect__accessibility-controls">
-            <button
-              type="button"
-              onClick={toggleAvatarColor}
-              className={`connect__color-toggle ${isColorForced ? 'connect__color-toggle--active' : ''}`}
-              aria-pressed={isColorForced}
-              aria-label="Toggle avatar monochrome or full colour"
-            >
-              <span className="connect__color-toggle-dot" />
-              <span>{isColorForced ? 'Avatar Colour: ON' : 'Toggle Avatar Colour'}</span>
-            </button>
-          </div>
         </div>
 
         {/* Right Column: 3D Three.js Interactive Avatar & Halo of Social Icons */}

@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useSmoothScroll } from '../../context/SmoothScrollContext'
+import { useNavigation } from '../../context/NavigationContext'
 import { FEATURED_DATA } from '../../data/featured'
 import './Featured.css'
 
@@ -208,22 +209,20 @@ function FeaturedCard({ item, index, prefersReducedMotion }) {
     rafRef.current = requestAnimationFrame(updateCardTransform)
   }, [prefersReducedMotion, updateCardTransform])
 
-  // Click handler: records scroll state and handles graceful placeholder navigation
+  const { navigate } = useNavigation()
+
+  // Click handler: records scroll state and navigates to detail collection page
   const handleClick = (e) => {
-    // Save scroll position and origin card in sessionStorage for seamless back navigation
+    e.preventDefault()
     try {
-      sessionStorage.setItem('portfolio_return_section', 'projects')
+      sessionStorage.setItem('portfolio_pending_target', 'featured-work')
+      sessionStorage.setItem('portfolio_return_section', 'featured')
       sessionStorage.setItem('portfolio_return_scroll', String(window.scrollY))
       sessionStorage.setItem('portfolio_active_card', item.id)
     } catch {
       // Ignore sessionStorage exceptions in private browsing
     }
-
-    // Since sub-pages (6B) will be built in the upcoming prompt,
-    // prevent broken unhandled 404 navigation while maintaining link semantics.
-    if (!window.__HAS_ROUTER__) {
-      e.preventDefault()
-    }
+    navigate(item.route)
   }
 
   // Render visual based on card ID
@@ -323,11 +322,62 @@ export default function Featured() {
 
     // 0. Scroll Anchor for navigation
     const anchorSt = ScrollTrigger.create({
-      id: 'projects',
+      id: 'featured-work',
       trigger: sectionEl,
       start: 'top top',
     })
     triggers.push(anchorSt)
+
+    const projectsSt = ScrollTrigger.create({
+      id: 'projects',
+      trigger: sectionEl,
+      start: 'top top',
+    })
+    triggers.push(projectsSt)
+
+    // Handle returning to Featured Work from detail subpages (/projects, /experience, /exchange)
+    let pendingTarget = null
+    try {
+      pendingTarget = sessionStorage.getItem('portfolio_pending_target')
+    } catch {
+      pendingTarget = null
+    }
+
+    if (pendingTarget === 'featured-work' || pendingTarget === 'projects') {
+      try {
+        sessionStorage.removeItem('portfolio_pending_target')
+      } catch {
+        // ignore
+      }
+
+      const executeFeaturedJump = (retries = 15) => {
+        ScrollTrigger.refresh()
+        const el = document.getElementById('projects') || sectionEl
+        const rect = el.getBoundingClientRect()
+        const currentTop = rect.top + window.scrollY
+        const aboutSpacer = document.querySelector('.pin-spacer')
+
+        // If About and Filler pin-spacers are not yet in place, retry next animation frame
+        if ((!aboutSpacer || currentTop < 3800) && retries > 0) {
+          requestAnimationFrame(() => executeFeaturedJump(retries - 1))
+          return
+        }
+
+        if (window.__lenis) {
+          window.__lenis.scrollTo(currentTop, { immediate: true })
+        } else {
+          window.scrollTo({ top: currentTop, behavior: 'instant' })
+        }
+
+        requestAnimationFrame(() => {
+          ScrollTrigger.refresh()
+        })
+      }
+
+      requestAnimationFrame(() => {
+        executeFeaturedJump(15)
+      })
+    }
 
     // -------------------------------------------------------------------------
     // 1. Section Activation & Dark Navbar/Index (Index 03: Projects)

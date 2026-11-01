@@ -1,11 +1,12 @@
 /**
  * Featured Work Section Data
  * Card data for the three flagship pathways: Projects, Work Experience, and Semester Exchange.
- * Includes optional live item count checking against future data files.
+ * Includes live item counts derived from projects.js and experience.js.
  */
 
-// If standalone data files for projects, experience, or exchange exist in the future,
-// their arrays or counts can be imported here.
+import { PROJECTS_DATA } from './projects'
+import { EXPERIENCE_DATA } from './experience'
+
 export const FEATURED_DATA = [
   {
     id: 'projects',
@@ -15,7 +16,7 @@ export const FEATURED_DATA = [
     description: 'AI products, data work and web experiences, built end to end.',
     cta: 'View all projects',
     route: '/projects',
-    count: null, // Will automatically display if provided or populated
+    count: `${PROJECTS_DATA.length} projects`,
   },
   {
     id: 'experience',
@@ -25,7 +26,7 @@ export const FEATURED_DATA = [
     description: 'Roles, responsibilities and the impact I\'ve made.',
     cta: 'View experience',
     route: '/experience',
-    count: null,
+    count: `${EXPERIENCE_DATA.length} roles`,
   },
   {
     id: 'exchange',
@@ -35,6 +36,6 @@ export const FEATURED_DATA = [
     description: 'Studying abroad: the courses, the culture and what it changed.',
     cta: 'Read the story',
     route: '/exchange',
-    count: null,
+    count: '1 semester',
   },
 ]

@@ -1,0 +1,639 @@
+/* =========================================================================
+   EXPERIENCE PAGE STYLING — Vertical Timeline & Detail Panels
+   ========================================================================= */
+
+.experience-layout {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: clamp(2rem, 4vw, 4.5rem);
+}
+
+/* -------------------------------------------------------------------------
+   1. Left Vertical Timeline Hairline & Scrubbed Fill
+   ------------------------------------------------------------------------- */
+.exp-timeline {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.exp-timeline__track {
+  position: sticky;
+  top: calc(var(--nav-height, 80px) + 3rem);
+  height: min(680px, 75vh);
+  width: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.exp-timeline__base-line {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 1.5px;
+  background-color: rgba(245, 242, 238, 0.12);
+}
+
+.exp-timeline__fill-line {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 1.5px;
+  background-color: var(--accent, #E8283C);
+  transform-origin: top center;
+  transform: scaleY(0);
+  will-change: transform;
+}
+
+.exp-timeline__node {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #0E0E10;
+  border: 1.5px solid rgba(245, 242, 238, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  transition: border-color 0.35s ease, transform 0.35s ease;
+  z-index: 2;
+}
+
+.exp-timeline__node--1 {
+  top: 18%;
+}
+
+.exp-timeline__node--2 {
+  top: 68%;
+}
+
+.exp-timeline__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: transparent;
+  transition: background-color 0.35s ease;
+}
+
+.exp-timeline__node--active {
+  border-color: var(--accent, #E8283C);
+  transform: translateY(-50%) scale(1.15);
+}
+
+.exp-timeline__node--active .exp-timeline__dot {
+  background-color: var(--accent, #E8283C);
+}
+
+/* -------------------------------------------------------------------------
+   2. Panels List
+   ------------------------------------------------------------------------- */
+.exp-panels-list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3rem, 6vh, 5.5rem);
+}
+
+.exp-panel {
+  position: relative;
+  width: 100%;
+  background-color: #151518;
+  border: 1px solid rgba(245, 242, 238, 0.12);
+  border-radius: 20px;
+  padding: clamp(2rem, 3.5vw, 3.5rem);
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.72),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.3s ease;
+}
+
+.exp-panel:hover {
+  border-color: rgba(245, 242, 238, 0.25);
+}
+
+.exp-panel__spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    650px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.04) 0%,
+    transparent 70%
+  );
+  opacity: 0.85;
+  z-index: 1;
+}
+
+.exp-panel__huge-num {
+  position: absolute;
+  top: 1rem;
+  right: 2rem;
+  font-family: var(--font-condensed, 'Anton', sans-serif);
+  font-size: clamp(7rem, 14vw, 13rem);
+  line-height: 0.8;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(245, 242, 238, 0.05);
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+/* Header */
+.exp-panel__header {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.exp-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.exp-panel__index {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--accent, #E8283C);
+}
+
+.exp-panel__date-badge {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(245, 242, 238, 0.12);
+  color: rgba(245, 242, 238, 0.82);
+}
+
+.exp-panel__org {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-condensed, 'Anton', sans-serif);
+  font-weight: 900;
+  font-size: clamp(2.2rem, 3.4vw, 3.4rem);
+  text-transform: uppercase;
+  color: var(--text-light, #F5F2EE);
+  line-height: 1;
+}
+
+.exp-panel__role {
+  margin: 0 0 1rem;
+  font-family: var(--font-serif-italic, 'Instrument Serif', serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.4rem, 1.9vw, 1.9rem);
+  color: rgba(245, 242, 238, 0.85);
+}
+
+.exp-panel__summary {
+  margin: 0;
+  max-width: 68ch;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 0.95vw, 15px);
+  line-height: 1.6;
+  color: rgba(245, 242, 238, 0.7);
+}
+
+/* -------------------------------------------------------------------------
+   3. Details Block: TON Responsibilities & Pipeline Diagram
+   ------------------------------------------------------------------------- */
+.exp-panel__details {
+  position: relative;
+  z-index: 2;
+  margin: 2rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.responsibilities-section {
+  width: 100%;
+}
+
+.responsibilities-heading {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 242, 238, 0.45);
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.responsibilities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.responsibility-tile {
+  background-color: #1A1A1E;
+  border: 1px solid rgba(245, 242, 238, 0.1);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  box-sizing: border-box;
+  transition:
+    background-color 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.responsibility-tile:hover {
+  background-color: #222227;
+  border-color: rgba(245, 242, 238, 0.25);
+  transform: translateY(-2px);
+}
+
+.responsibility-tile__icon {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: var(--accent, #E8283C);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.responsibility-tile__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.responsibility-tile__text {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: rgba(245, 242, 238, 0.88);
+}
+
+/* -------------------------------------------------------------------------
+   4. Sigma Club: Milestones & Wireframes
+   ------------------------------------------------------------------------- */
+.sigma-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  background-color: #121214;
+  border: 1px solid rgba(245, 242, 238, 0.1);
+  border-radius: 14px;
+  padding: 1.75rem;
+  box-sizing: border-box;
+}
+
+.sigma-visual__title {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(245, 242, 238, 0.55);
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.sigma-milestones-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.sigma-milestone-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+}
+
+.sigma-milestone-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #151518;
+  border: 1.25px solid var(--accent, #E8283C);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sigma-milestone-inner {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+}
+
+.sigma-milestone-text {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(245, 242, 238, 0.85);
+}
+
+.sigma-devices {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 1.5rem 0 0.5rem;
+  border-top: 1px solid rgba(245, 242, 238, 0.08);
+}
+
+.sigma-phone {
+  border: 1px solid rgba(245, 242, 238, 0.22);
+  border-radius: 14px;
+  background-color: #17161A;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.sigma-phone--left,
+.sigma-phone--right {
+  width: 78px;
+  height: 120px;
+  opacity: 0.6;
+}
+
+.sigma-phone--center {
+  width: 95px;
+  height: 145px;
+  border-color: rgba(245, 242, 238, 0.4);
+}
+
+.sigma-phone__notch {
+  width: 24px;
+  height: 3px;
+  background-color: rgba(245, 242, 238, 0.2);
+  border-radius: 2px;
+  margin: 0 auto 4px;
+}
+
+.sigma-phone__line {
+  height: 4px;
+  background-color: rgba(245, 242, 238, 0.12);
+  border-radius: 2px;
+}
+
+.sigma-phone__line--w50 { width: 50%; }
+.sigma-phone__line--w60 { width: 60%; }
+.sigma-phone__line--w70 { width: 70%; }
+.sigma-phone__line--w80 { width: 80%; }
+
+.sigma-phone__box {
+  flex: 1 1 auto;
+  border: 1px dashed rgba(245, 242, 238, 0.1);
+  border-radius: 6px;
+}
+
+.sigma-phone__card {
+  height: 34px;
+  background-color: rgba(232, 40, 60, 0.12);
+  border: 1px solid rgba(232, 40, 60, 0.35);
+  border-radius: 6px;
+}
+
+.sigma-phone__header-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+}
+
+/* Tag Chips */
+.exp-panel__tags {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 1rem;
+}
+
+.exp-tag-chip {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background-color: #1E1D22;
+  border: 1px solid rgba(245, 242, 238, 0.12);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(245, 242, 238, 0.82);
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.exp-tag-chip:hover {
+  background-color: #27262D;
+  border-color: rgba(245, 242, 238, 0.35);
+  color: var(--text-light, #F5F2EE);
+}
+
+/* -------------------------------------------------------------------------
+   5. RESPONSIVE BREAKPOINTS
+   ------------------------------------------------------------------------- */
+@media (max-width: 899px) {
+  .experience-layout {
+    grid-template-columns: 24px 1fr;
+    gap: 1.25rem;
+  }
+
+  .exp-panel {
+    padding: 1.5rem;
+  }
+
+  .exp-panel__huge-num {
+    display: none;
+  }
+
+  .responsibilities-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .data-journey__track {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .data-journey__connector {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .experience-layout {
+    grid-template-columns: 16px 1fr;
+    gap: 12px;
+  }
+
+  .exp-timeline__track {
+    width: 16px;
+  }
+
+  .exp-timeline__node {
+    width: 13px;
+    height: 13px;
+  }
+
+  .exp-timeline__dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .exp-panels-list {
+    gap: 2.5rem;
+  }
+
+  .exp-panel {
+    padding: 1.25rem 1rem;
+    border-radius: 16px;
+  }
+
+  .exp-panel__header {
+    margin-bottom: 1.25rem;
+  }
+
+  .exp-panel__meta {
+    gap: 8px;
+    margin-bottom: 0.5rem;
+  }
+
+  .exp-panel__index {
+    font-size: 10.5px;
+  }
+
+  .exp-panel__date-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .exp-panel__org {
+    font-size: clamp(1.55rem, 6.5vw, 2.1rem);
+    line-height: 1.05;
+    margin-bottom: 0.25rem;
+  }
+
+  .exp-panel__role {
+    font-size: clamp(1.1rem, 4.5vw, 1.35rem);
+    margin-bottom: 0.65rem;
+  }
+
+  .exp-panel__summary {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .exp-panel__details {
+    margin: 1.25rem 0;
+    gap: 1.25rem;
+  }
+
+  .responsibilities-heading {
+    font-size: 8.5px;
+    margin-bottom: 0.65rem;
+  }
+
+  .responsibilities-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .responsibility-tile {
+    padding: 11px 13px;
+    gap: 10px;
+    border-radius: 10px;
+  }
+
+  .responsibility-tile__icon {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .responsibility-tile__text {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .sigma-visual {
+    padding: 1.15rem 0.9rem;
+    gap: 1.25rem;
+    border-radius: 12px;
+  }
+
+  .sigma-visual__title {
+    font-size: 8px;
+    margin-bottom: 0.85rem;
+  }
+
+  .sigma-milestones-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .sigma-milestone-item {
+    gap: 6px;
+  }
+
+  .sigma-milestone-node {
+    width: 12px;
+    height: 12px;
+  }
+
+  .sigma-milestone-text {
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+
+  .sigma-devices {
+    padding: 1rem 0 0.25rem;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .sigma-phone--left,
+  .sigma-phone--right {
+    width: 65px;
+    height: 100px;
+  }
+
+  .sigma-phone--center {
+    width: 80px;
+    height: 120px;
+  }
+
+  .exp-panel__tags {
+    gap: 6px;
+    margin-top: 0.75rem;
+  }
+
+  .exp-tag-chip {
+    padding: 4px 9px;
+    font-size: 10px;
+  }
+}
+

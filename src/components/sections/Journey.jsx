@@ -1,256 +1,336 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useSmoothScroll } from '../../context/SmoothScrollContext'
-import { useParticleStage } from '../canvas/ParticleStage'
-import ScrollCue from '../common/ScrollCue'
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useSmoothScroll } from '../../context/SmoothScrollContext';
+import ScrollCue from '../common/ScrollCue';
+import PlaceholderArt from './PlaceholderArt';
 import {
-  JOURNEY_ENTRIES,
+  JOURNEY_SECTION_META,
   JOURNEY_CATEGORIES,
+  CATEGORY_META,
   YEAR_MARKERS,
   JOURNEY_OUTRO,
-  CATEGORY_META,
-} from '../../data/journey'
-import PlaceholderArt, { getRealJourneyImage } from './PlaceholderArt'
-import './Journey.css'
+  JOURNEY_CAMERA_CONFIG,
+  JOURNEY_ENTRIES,
+  getFirstEntryIndexByCategory,
+} from '../../data/journey';
+import './Journey.css';
 
-/**
- * ============================================================================
- * KEY TUNING CONSTANTS (Camera-on-a-Rail & Scroll Mapping)
- * ============================================================================
- */
-export const JOURNEY_TUNING = {
-  focalLength: 1050,          // Base perspective focal length (px at 1440w)
-  stepZ: 520,                 // World Z distance between consecutive cards
-  focusDistZ: 660,            // Distance from camera to the d = 0 focus node
-  camOffsetX: -45,            // Camera lateral offset from spline centerline (desktop)
-  camOffsetY: -95,            // Camera elevation: places cards directly in the middle-upper viewport
-  camYawRad: 0.145,           // Subtle rightward look angle so spline winds to upper-right
-  camPitchRad: -0.055,        // Subtle horizon pitch
-  maxBankDeg: 3.0,            // Max camera banking roll (+/- 3deg) along S-curves
-  dwellRadius: 0.22,          // +/- path units around each card where camera slows down
-  dwellSpeedFactor: 0.35,     // Camera moves at 35% speed inside dwell zones
-  majorWeightMultiplier: 1.3, // "major" entries receive +30% scroll length
-  vhPerEntry: 85,             // Base scroll vh per entry
-  introVh: 105,               // Intro scroll buffer (vh) for stroke reveal & heading
-  outroVh: 115,               // Outro scroll buffer (vh) for horizon fade & closing frame
-  cameraLerp: 0.12,           // Single light damping step in the render loop
-  dustCountDesktop: 150,      // Sparse 3D dust specks around the rail on desktop
-  dustCountMobile: 42,        // Reduced dust specks on <900px mobile
+gsap.registerPlugin(ScrollTrigger);
+
+/* ============================================================================
+ * 3D CATMULL-ROM SPLINE & PERSPECTIVE PROJECTION ENGINE (Pure Vanilla Math)
+ * ============================================================================ */
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 /**
- * Placement stances alternating relative to the path (left, right, above)
- * so neighbouring cards in 3D space never overlap on screen.
+ * Evaluate a 3D Catmull-Rom spline at normalized parameter u in [0, 1]
  */
-const CARD_PLACEMENTS = [
-  { stance: 'left', anchorXRatio: 0.64, stemHeight: 60, baseRotY: 7.0, baseRotZ: -1.8, sideSign: -1 },
-  { stance: 'right', anchorXRatio: 0.36, stemHeight: 76, baseRotY: -7.5, baseRotZ: 2.0, sideSign: 1 },
-  { stance: 'above', anchorXRatio: 0.50, stemHeight: 88, baseRotY: -4.0, baseRotZ: -1.2, sideSign: -0.6 },
-  { stance: 'right', anchorXRatio: 0.32, stemHeight: 56, baseRotY: -8.0, baseRotZ: 2.2, sideSign: 1 },
-  { stance: 'left', anchorXRatio: 0.68, stemHeight: 80, baseRotY: 7.5, baseRotZ: -2.2, sideSign: -1 },
-]
+function evalCatmullRom3D(points, u) {
+  const n = points.length;
+  if (n === 0) return { x: 0, y: 0, z: 0 };
+  if (n === 1) return { ...points[0] };
 
-/**
- * Generates deterministic 3D control points for the Catmull-Rom spline.
- * Indices run from k = -3 to N + 6 so the spline has smooth S-curves
- * from behind the camera all the way to the distant horizon.
- */
-function buildSplineControlPoints(numEntries) {
-  const pts = []
-  const minK = -3
-  const maxK = numEntries + 6
+  const scaled = clamp(u, 0, 1) * (n - 1);
+  const seg = Math.min(Math.floor(scaled), n - 2);
+  const t = scaled - seg;
+  const t2 = t * t;
+  const t3 = t2 * t;
 
-  for (let k = minK; k <= maxK; k++) {
-    const swayX = 240 * Math.sin(k * 1.18 - 0.3) + 55 * Math.cos(k * 0.52)
-    const waveY = 36 * Math.cos(k * 1.05 + 0.4)
-    const z = k * JOURNEY_TUNING.stepZ
+  const p0 = points[Math.max(0, seg - 1)];
+  const p1 = points[seg];
+  const p2 = points[seg + 1];
+  const p3 = points[Math.min(n - 1, seg + 2)];
 
-    pts.push({ k, x: swayX, y: waveY, z })
-  }
-  return { pts, minK, maxK }
+  const x =
+    0.5 *
+    (2 * p1.x +
+      (-p0.x + p2.x) * t +
+      (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+      (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+
+  const y =
+    0.5 *
+    (2 * p1.y +
+      (-p0.y + p2.y) * t +
+      (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+      (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+
+  const z =
+    0.5 *
+    (2 * p1.z +
+      (-p0.z + p2.z) * t +
+      (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 +
+      (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3);
+
+  return { x, y, z };
 }
 
 /**
- * Evaluates a 3D point and tangent on the Catmull-Rom spline at continuous path parameter `u`.
- * `swayScale` allows mobile (<900px) to narrow the horizontal sway into a centered vertical S-curve.
+ * Evaluate the unit tangent vector of the 3D Catmull-Rom spline at u in [0, 1]
  */
-function evaluateSpline(splineData, u, swayScale = 1.0) {
-  const { pts, minK, maxK } = splineData
-  const clampedU = Math.max(minK + 1, Math.min(maxK - 2, u))
-  const iFloor = Math.floor(clampedU)
-  const t = clampedU - iFloor
-  const idx = iFloor - minK
-
-  const p0 = pts[idx - 1]
-  const p1 = pts[idx]
-  const p2 = pts[idx + 1]
-  const p3 = pts[idx + 2]
-
-  const t2 = t * t
-  const t3 = t2 * t
-
-  // Standard Catmull-Rom matrix weights (tau = 0.5)
-  const c0 = -0.5 * t3 + t2 - 0.5 * t
-  const c1 = 1.5 * t3 - 2.5 * t2 + 1.0
-  const c2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t
-  const c3 = 0.5 * t3 - 0.5 * t2
-
-  const x = (c0 * p0.x + c1 * p1.x + c2 * p2.x + c3 * p3.x) * swayScale
-  const y = c0 * p0.y + c1 * p1.y + c2 * p2.y + c3 * p3.y
-  const z = c0 * p0.z + c1 * p1.z + c2 * p2.z + c3 * p3.z
-
-  // First derivative (tangent) for camera banking / curvature
-  const d0 = -1.5 * t2 + 2.0 * t - 0.5
-  const d1 = 4.5 * t2 - 5.0 * t
-  const d2 = -4.5 * t2 + 4.0 * t + 0.5
-  const d3 = 1.5 * t2 - t
-
-  const tx = (d0 * p0.x + d1 * p1.x + d2 * p2.x + d3 * p3.x) * swayScale
-  const ty = d0 * p0.y + d1 * p1.y + d2 * p2.y + d3 * p3.y
-  const tz = d0 * p0.z + d1 * p1.z + d2 * p2.z + d3 * p3.z
-
-  return { x, y, z, tx, ty, tz }
+function evalCatmullRomTangent3D(points, u) {
+  const eps = 0.0015;
+  const a = evalCatmullRom3D(points, Math.max(0, u - eps));
+  const b = evalCatmullRom3D(points, Math.min(1, u + eps));
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  return { x: dx / len, y: dy / len, z: dz / len };
 }
 
 /**
- * Builds a lookup table mapping scroll progress (0..1) -> camera path position `u`
- * with explicit DWELL ZONES (+/- 0.22 around each integer card index) where the
- * camera moves at 35% speed, and major cards receive +30% scroll weight.
- * Includes an entry lead-in (uStart = -0.65) and an outro horizon run-out (uEnd = N - 1 + 1.45).
+ * Build the 3D world spline control points and arc-length lookup table.
+ * The path winds organically left-right (X), rises/dips through gentle
+ * hills and valleys (Y), and advances steadily forward into depth (Z).
  */
-function buildScrollToCameraLut(entries) {
-  const n = entries.length
-  const uStart = -0.65
-  const uEnd = n - 1 + 1.45
-  const samples = 2800
-  const du = (uEnd - uStart) / samples
+function buildTimelineSpline(entryCount, isMobile = false) {
+  const Z_SPACING = 340;
+  const totalZ = (entryCount + 2.5) * Z_SPACING;
+  const controlCount = (entryCount + 3) * 2;
+  const controlPoints = [];
 
-  const uValues = new Float32Array(samples + 1)
-  const cumScroll = new Float32Array(samples + 1)
+  const xAmp = isMobile ? 54 : 155;
+  const yAmp = isMobile ? 28 : 66;
 
-  const { dwellRadius, dwellSpeedFactor, majorWeightMultiplier } = JOURNEY_TUNING
-  let acc = 0
+  for (let i = 0; i <= controlCount; i++) {
+    const frac = i / controlCount;
+    const z = frac * totalZ - Z_SPACING * 0.85;
+    const wavePhase = frac * Math.PI * 4.2;
+    const secondaryPhase = frac * Math.PI * 8.4 + 0.65;
 
-  for (let s = 0; s <= samples; s++) {
-    const u = uStart + s * du
-    uValues[s] = u
-    cumScroll[s] = acc
+    const x =
+      Math.sin(wavePhase) * xAmp + Math.cos(secondaryPhase) * (xAmp * 0.28);
+    const y =
+      Math.cos(wavePhase * 0.85) * yAmp +
+      Math.sin(secondaryPhase * 0.7) * (yAmp * 0.32);
 
-    const nearestIdx = Math.max(0, Math.min(n - 1, Math.round(u)))
-    const distToCard = Math.abs(u - nearestIdx)
-    const entry = entries[nearestIdx]
-    const majorMult =
-      u >= -0.25 && u <= n - 0.75 && entry?.size === 'major'
-        ? majorWeightMultiplier
-        : 1.0
-
-    let speed = 1.0
-    if (u >= -0.25 && u <= n - 0.75 && distToCard < dwellRadius) {
-      const norm = distToCard / dwellRadius
-      const smooth = norm * norm * (3 - 2 * norm)
-      speed = dwellSpeedFactor + (1.0 - dwellSpeedFactor) * smooth
-    }
-
-    const scrollCost = (1.0 / speed) * majorMult
-    acc += scrollCost * du
+    controlPoints.push({ x, y, z });
   }
 
-  const totalScrollCost = cumScroll[samples] || 1
-  for (let s = 0; s <= samples; s++) {
-    cumScroll[s] /= totalScrollCost
+  // Dense sample table (600 points) for fast world-Z -> spline parameter lookup
+  const SAMPLE_COUNT = 600;
+  const samples = new Array(SAMPLE_COUNT + 1);
+  for (let i = 0; i <= SAMPLE_COUNT; i++) {
+    const u = i / SAMPLE_COUNT;
+    const pt = evalCatmullRom3D(controlPoints, u);
+    const tan = evalCatmullRomTangent3D(controlPoints, u);
+    samples[i] = { u, ...pt, tx: tan.x, ty: tan.y, tz: tan.z };
   }
 
-  return { uValues, cumScroll, samples, uStart, uEnd }
+  return {
+    controlPoints,
+    samples,
+    Z_SPACING,
+    totalZ,
+  };
 }
 
 /**
- * Maps normalized scroll progress p in [0, 1] to camera path position `u` via binary search.
+ * Sample the spline at a given world Z coordinate via binary search
  */
-function mapScrollProgressToU(lut, p) {
-  const { uValues, cumScroll, samples } = lut
-  const clampedP = Math.max(0, Math.min(1, p))
+function sampleSplineAtZ(spline, targetZ) {
+  const { samples } = spline;
+  const n = samples.length;
+  if (targetZ <= samples[0].z) return samples[0];
+  if (targetZ >= samples[n - 1].z) return samples[n - 1];
 
-  let low = 0
-  let high = samples
-  while (low < high) {
-    const mid = (low + high) >>> 1
-    if (cumScroll[mid] < clampedP) {
-      low = mid + 1
-    } else {
-      high = mid
-    }
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].z <= targetZ) lo = mid;
+    else hi = mid;
   }
 
-  const i = Math.max(1, low)
-  const s0 = cumScroll[i - 1]
-  const s1 = cumScroll[i]
-  const t = s1 > s0 ? (clampedP - s0) / (s1 - s0) : 0
-  return uValues[i - 1] + (uValues[i] - uValues[i - 1]) * t
+  const a = samples[lo];
+  const b = samples[hi];
+  const span = b.z - a.z || 1;
+  const t = clamp((targetZ - a.z) / span, 0, 1);
+
+  return {
+    u: lerp(a.u, b.u, t),
+    x: lerp(a.x, b.x, t),
+    y: lerp(a.y, b.y, t),
+    z: targetZ,
+    tx: lerp(a.tx, b.tx, t),
+    ty: lerp(a.ty, b.ty, t),
+    tz: lerp(a.tz, b.tz, t),
+  };
 }
 
 /**
- * Inverse mapping: finds normalized scroll progress p in [0, 1] for a given card index `uTarget`.
+ * Compute cumulative scroll weights for entries so scroll progress [0..1]
+ * maps smoothly to continuous entry-index space [0 .. N-1 + outroSpan].
  */
-function findScrollProgressForCard(lut, uTarget) {
-  const { uValues, cumScroll, samples } = lut
-  for (let i = 1; i <= samples; i++) {
-    if (uValues[i] >= uTarget) {
-      return cumScroll[i]
-    }
+function buildEntryScrollMap(entries) {
+  const { majorWeightMultiplier } = JOURNEY_CAMERA_CONFIG;
+  const weights = entries.map((e) =>
+    e.size === 'major' ? majorWeightMultiplier : 1.0
+  );
+
+  // Entry 0 starts at scroll offset 0; subsequent entries spaced by average weight
+  const cumulative = [0];
+  for (let i = 1; i < entries.length; i++) {
+    const stepWeight = (weights[i - 1] + weights[i]) * 0.5;
+    cumulative.push(cumulative[i - 1] + stepWeight);
   }
-  return 1
+
+  // Reserve extra scroll weight at the end for the outro beat ("To be continued...")
+  const outroWeight = 1.15;
+  const totalWeight = cumulative[cumulative.length - 1] + outroWeight;
+
+  return {
+    weights,
+    cumulative,
+    outroWeight,
+    totalWeight,
+  };
 }
 
 /**
- * Generates sparse 3D atmospheric dust specks along the corridor of the spline.
+ * Convert overall scroll progress p in [0, 1] into continuous entry index s
+ * where s = 0 is Entry 0 in focus, s = N-1 is final entry in focus,
+ * and s > N-1 transitions into the closing outro frame.
  */
-function generateDustParticles(splineData, numEntries, count) {
-  const specks = []
-  const uMin = -1.2
-  const uMax = numEntries + 3.5
+function scrollProgressToContinuousIndex(p, scrollMap) {
+  const { cumulative, outroWeight, totalWeight } = scrollMap;
+  const targetW = clamp(p, 0, 1) * totalWeight;
+  const n = cumulative.length;
+  const lastEntryW = cumulative[n - 1];
 
+  if (targetW >= lastEntryW) {
+    const outroT = clamp((targetW - lastEntryW) / outroWeight, 0, 1);
+    return {
+      continuousIndex: n - 1 + outroT * 1.15,
+      outroProgress: outroT,
+    };
+  }
+
+  // Binary search in cumulative weight table
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (cumulative[mid] <= targetW) lo = mid;
+    else hi = mid;
+  }
+
+  const w0 = cumulative[lo];
+  const w1 = cumulative[hi];
+  const segT = clamp((targetW - w0) / (w1 - w0 || 1), 0, 1);
+
+  return {
+    continuousIndex: lo + segT,
+    outroProgress: 0,
+  };
+}
+
+/**
+ * Convert a desired entry index i back into normalized scroll progress [0..1]
+ */
+function entryIndexToScrollProgress(index, scrollMap) {
+  const { cumulative, totalWeight } = scrollMap;
+  const clampedIdx = clamp(index, 0, cumulative.length - 1);
+  return cumulative[clampedIdx] / (totalWeight || 1);
+}
+
+/**
+ * Project a 3D world point (wx, wy, wz) into 2D screen space relative to camera
+ */
+function projectPoint3D(
+  wx,
+  wy,
+  wz,
+  cam,
+  viewportW,
+  viewportH,
+  focalLength,
+  opticalCenterX
+) {
+  // Translate relative to camera
+  const dx = wx - cam.x;
+  const dy = wy - cam.y;
+  const dz = wz - cam.z;
+
+  // Apply subtle camera yaw (around Y) and pitch (around X)
+  const cosYaw = Math.cos(cam.yaw);
+  const sinYaw = Math.sin(cam.yaw);
+  const rx = dx * cosYaw - dz * sinYaw;
+  const rz1 = dx * sinYaw + dz * cosYaw;
+
+  const cosPitch = Math.cos(cam.pitch);
+  const sinPitch = Math.sin(cam.pitch);
+  const ry = dy * cosPitch - rz1 * sinPitch;
+  const rz = dy * sinPitch + rz1 * cosPitch;
+
+  if (rz <= 18) {
+    return null;
+  }
+
+  const scale = focalLength / rz;
+  const screenX = opticalCenterX + rx * scale;
+  const screenY = viewportH * 0.54 - ry * scale;
+
+  return {
+    x: screenX,
+    y: screenY,
+    z: rz,
+    scale,
+  };
+}
+
+/**
+ * Generate 48 deterministic ambient dust motes distributed in 3D space
+ * along the full length of the spline.
+ */
+function buildAmbientDustMotes(totalZ) {
+  const count = 48;
+  const motes = [];
   for (let i = 0; i < count; i++) {
-    const u = uMin + (i / count) * (uMax - uMin) + (Math.random() - 0.5) * 0.4
-    const center = evaluateSpline(splineData, u, 1.0)
-    const spreadX = (Math.random() - 0.5) * 760
-    const spreadY = (Math.random() - 0.5) * 320 + 25
-    const spreadZ = (Math.random() - 0.5) * 260
+    // Deterministic Halton-like pseudo-random distribution
+    const s1 = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+    const s2 = Math.sin(i * 93.9898 + 19.133) * 24634.6345;
+    const s3 = Math.sin(i * 45.164 + 37.719) * 19532.1123;
+    const r1 = s1 - Math.floor(s1);
+    const r2 = s2 - Math.floor(s2);
+    const r3 = s3 - Math.floor(s3);
 
-    specks.push({
-      baseX: center.x,
-      spreadX,
-      y: center.y + spreadY,
-      z: center.z + spreadZ,
-      size: 0.8 + Math.random() * 1.35,
-      alpha: 0.16 + Math.random() * 0.38,
-      isRed: i % 12 === 0, // ~1 in 12 is accent red
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.4 + Math.random() * 0.7,
-    })
+    motes.push({
+      xOffset: (r1 - 0.5) * 760,
+      yOffset: (r2 - 0.5) * 420,
+      z: r3 * totalZ,
+      radius: 0.75 + (i % 3) * 0.4,
+      baseAlpha: 0.14 + (i % 4) * 0.05,
+    });
   }
-  return specks
+  return motes;
 }
 
-function smoothstep(min, max, value) {
-  const x = Math.max(0, Math.min(1, (value - min) / (max - min)))
-  return x * x * (3 - 2 * x)
-}
+/* ============================================================================
+ * MAIN COMPONENT: Journey (Section 05)
+ * ============================================================================ */
 
 export default function Journey() {
-  const sectionRef = useRef(null)
-  const canvasRef = useRef(null)
-  const headerMainRef = useRef(null)
-  const categoryFillRef = useRef(null)
-  const bottomProgressRef = useRef(null)
-  const scrollCueWrapRef = useRef(null)
-  const outroFrameRef = useRef(null)
-  const exitCurtainRef = useRef(null)
-  const mobileChipStripRef = useRef(null)
-  const mobileChipRefs = useRef({})
-  const cardRefs = useRef([])
-  const stRef = useRef(null)
-
   const {
     scrollTo,
     setActiveTheme,
@@ -258,825 +338,889 @@ export default function Journey() {
     setActiveSectionIndex,
     setIsChromeHidden,
     updateProgress,
-  } = useSmoothScroll()
-  const { stage: particleStage } = useParticleStage()
+  } = useSmoothScroll();
 
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false
-  )
-  const [activeCategory, setActiveCategory] = useState(JOURNEY_ENTRIES[0].category)
-  const [focusedIndex, setFocusedIndex] = useState(0)
-  const [activeYear, setActiveYear] = useState(JOURNEY_ENTRIES[0].year)
-  const [nearCameraWindow, setNearCameraWindow] = useState(0)
+  const sectionRef = useRef(null);
+  const canvasRef = useRef(null);
+  const stageRef = useRef(null);
+  const cardRefs = useRef([]);
+  const headerTitleRef = useRef(null);
+  const scrollCueWrapRef = useRef(null);
+  const bottomProgressFillRef = useRef(null);
+  const categoryLineFillRef = useRef(null);
+  const outroRef = useRef(null);
+  const exitCurtainRef = useRef(null);
 
-  // Refs synced into the GSAP ticker loop
-  const stateRef = useRef({
-    targetU: -0.65,
-    currentU: -0.65,
-    scrollProgress: 0,
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [activeCategory, setActiveCategory] = useState(
+    JOURNEY_ENTRIES[0]?.category || JOURNEY_CATEGORIES[0]
+  );
+  const [activeYear, setActiveYear] = useState(JOURNEY_ENTRIES[0]?.year || 2022);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  // Mutable animation state (zero React re-renders per frame)
+  const animStateRef = useRef({
+    targetProgress: 0,
+    smoothProgress: 0,
     isActive: false,
+    rafId: null,
+    viewportW: typeof window !== 'undefined' ? window.innerWidth : 1440,
+    viewportH: typeof window !== 'undefined' ? window.innerHeight : 900,
+    dpr:
+      typeof window !== 'undefined'
+        ? Math.min(window.devicePixelRatio || 1, 2)
+        : 1,
+    isMobile:
+      typeof window !== 'undefined' ? window.innerWidth < 900 : false,
     lastFocusedIdx: 0,
-    lastYear: JOURNEY_ENTRIES[0].year,
-    pulseTimer: 0,
-    pulseNodeIdx: 0,
-    avgFrameMs: 16.6,
-    slowFrameStreak: 0,
-    lowPerfMode: false,
-  })
+    lastCategory: JOURNEY_ENTRIES[0]?.category || JOURNEY_CATEGORIES[0],
+    lastYear: JOURNEY_ENTRIES[0]?.year || 2022,
+  });
 
-  // Listen for OS prefers-reduced-motion changes
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = (e) => setPrefersReducedMotion(e.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
+  // ScrollTrigger instance reference for programmatic jumps
+  const stRef = useRef(null);
 
-  // Auto-scroll active mobile category chip into horizontal view
-  useEffect(() => {
-    const stripEl = mobileChipStripRef.current
-    const chipEl = mobileChipRefs.current[activeCategory]
-    if (!stripEl || !chipEl) return
-    const targetLeft =
-      chipEl.offsetLeft - stripEl.clientWidth / 2 + chipEl.clientWidth / 2
-    stripEl.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' })
-  }, [activeCategory])
+  // Precompute scroll weight map for the 11 entries
+  const scrollMap = useMemo(() => buildEntryScrollMap(JOURNEY_ENTRIES), []);
 
-  // Precompute spline, scroll LUT, and 3D dust
-  const splineData = useMemo(
-    () => buildSplineControlPoints(JOURNEY_ENTRIES.length),
-    []
-  )
-  const scrollLut = useMemo(
-    () => buildScrollToCameraLut(JOURNEY_ENTRIES),
-    []
-  )
-  const dustSpecks = useMemo(
-    () =>
-      generateDustParticles(
-        splineData,
-        JOURNEY_ENTRIES.length,
-        JOURNEY_TUNING.dustCountDesktop
-      ),
-    [splineData]
-  )
+  // Precompute spline & entry 3D world positions
+  const sceneGraph = useMemo(() => {
+    const splineDesktop = buildTimelineSpline(JOURNEY_ENTRIES.length, false);
+    const splineMobile = buildTimelineSpline(JOURNEY_ENTRIES.length, true);
+    const motes = buildAmbientDustMotes(splineDesktop.totalZ);
 
-  // Calculate total pin scroll height in vh
-  const totalPinVh = useMemo(() => {
-    const entriesVh = JOURNEY_ENTRIES.reduce((sum, entry) => {
-      const mult =
-        entry.size === 'major' ? JOURNEY_TUNING.majorWeightMultiplier : 1.0
-      return sum + JOURNEY_TUNING.vhPerEntry * mult
-    }, 0)
-    return Math.round(
-      JOURNEY_TUNING.introVh + entriesVh + JOURNEY_TUNING.outroVh
-    )
-  }, [])
+    const computeEntryWorldPositions = (spline, isMob) =>
+      JOURNEY_ENTRIES.map((entry, i) => {
+        const nodeZ = (i + 0.65) * spline.Z_SPACING;
+        const sample = sampleSplineAtZ(spline, nodeZ);
+        // Alternating left/right placement; cards sit slightly above spline
+        const side = i % 2 === 0 ? -1 : 1;
+        const lateralOffset = isMob
+          ? side * 26
+          : side * 106;
+        const verticalLift = isMob
+          ? 74
+          : entry.layout === 'top'
+          ? 92
+          : 98;
 
-  // Dev-only console summary listing placeholder text & image status
-  useEffect(() => {
-    if (!import.meta.env.DEV) return
-
-    const missingImages = JOURNEY_ENTRIES.filter(
-      (e) => !getRealJourneyImage(e.id)
-    ).map((e) => e.id)
-    const placeholderCopy = JOURNEY_ENTRIES.filter((e) => e.placeholder).map(
-      (e) => e.id
-    )
-
-    console.info(
-      `%c[Journey Section 04 — Asset Status]%c\n` +
-        `• Entries using placeholder SVG art (${missingImages.length}/${JOURNEY_ENTRIES.length}): ${
-          missingImages.join(', ') || 'None'
-        }\n` +
-        `• Entries using placeholder copy (${placeholderCopy.length}/${JOURNEY_ENTRIES.length}): ${
-          placeholderCopy.join(', ') || 'None'
-        }\n` +
-        `Drop <id>.webp into src/assets/journey/ to auto-replace any placeholder image.`,
-      'color: #E8283C; font-weight: bold;',
-      'color: #C7C3BB;'
-    )
-  }, [])
-
-  // Ensure all cards are hidden initially before scroll / projection runs
-  useEffect(() => {
-    if (prefersReducedMotion) return
-    cardRefs.current.forEach((cardEl) => {
-      if (cardEl) {
-        cardEl.style.display = 'none'
-        cardEl.style.opacity = '0'
-      }
-    })
-  }, [prefersReducedMotion])
-
-  // Jump to a specific card index (used by Category Index & keyboard card focus)
-  const scrollToCardIndex = useCallback(
-    (targetIdx, duration = 1.35) => {
-      if (targetIdx < 0 || targetIdx >= JOURNEY_ENTRIES.length) return
-
-      if (prefersReducedMotion) {
-        const cardEl = cardRefs.current[targetIdx]
-        if (cardEl) {
-          cardEl.scrollIntoView({ behavior: 'auto', block: 'center' })
-        }
-        setFocusedIndex(targetIdx)
-        setActiveCategory(JOURNEY_ENTRIES[targetIdx].category)
-        setActiveYear(JOURNEY_ENTRIES[targetIdx].year)
-        return
-      }
-
-      const st = stRef.current
-      if (!st) return
-      const normP = findScrollProgressForCard(scrollLut, targetIdx)
-      const targetScrollY = st.start + normP * (st.end - st.start)
-      scrollTo(targetScrollY, {
-        duration,
-        easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
-      })
-    },
-    [prefersReducedMotion, scrollLut, scrollTo]
-  )
-
-  // Jump to first entry of a clicked category in the left sidebar or mobile strip
-  const handleCategoryClick = useCallback(
-    (category) => {
-      const targetIdx = JOURNEY_ENTRIES.findIndex(
-        (e) => e.category === category
-      )
-      if (targetIdx === -1) return
-      scrollToCardIndex(targetIdx, 1.45)
-    },
-    [scrollToCardIndex]
-  )
-
-  // Skip Timeline / Continue button: 1.6s expo ease to #skills
-  const handleSkipTimeline = useCallback(() => {
-    setIsChromeHidden(false)
-    updateProgress('experience', 1)
-    scrollTo('#contact', {
-      duration: 1.6,
-      easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
-    })
-  }, [scrollTo, setIsChromeHidden, updateProgress])
-
-  // Keyboard accessibility: focusing a card brings that card into 3D focus
-  const handleCardKeyboardFocus = useCallback(
-    (idx) => {
-      if (prefersReducedMotion) {
-        setFocusedIndex(idx)
-        setActiveCategory(JOURNEY_ENTRIES[idx].category)
-        setActiveYear(JOURNEY_ENTRIES[idx].year)
-        return
-      }
-      if (Math.abs(stateRef.current.currentU - idx) > 0.25) {
-        scrollToCardIndex(idx, 1.1)
-      }
-    },
-    [prefersReducedMotion, scrollToCardIndex]
-  )
-
-  // Reduced-motion scroll tracking
-  useEffect(() => {
-    if (!prefersReducedMotion) return
-    const sectionEl = sectionRef.current
-    if (!sectionEl) return
-
-    const st = ScrollTrigger.create({
-      trigger: sectionEl,
-      start: 'top 60%',
-      end: 'bottom 40%',
-      onEnter: () => {
-        setActiveSection('experience')
-        setActiveSectionIndex('05')
-        setActiveTheme('dark')
-        particleStage.setVisibility(0)
-      },
-      onEnterBack: () => {
-        setActiveSection('experience')
-        setActiveSectionIndex('05')
-        setActiveTheme('dark')
-        particleStage.setVisibility(0)
-      },
-      onUpdate: (self) => {
-        updateProgress('experience', self.progress)
-        const idx = Math.min(
-          JOURNEY_ENTRIES.length - 1,
-          Math.floor(self.progress * JOURNEY_ENTRIES.length)
-        )
-        setFocusedIndex(idx)
-        setActiveCategory(JOURNEY_ENTRIES[idx].category)
-        setActiveYear(JOURNEY_ENTRIES[idx].year)
-      },
-    })
-
-    return () => {
-      st.kill()
-      setIsChromeHidden(false)
-    }
-  }, [
-    prefersReducedMotion,
-    setActiveSection,
-    setActiveSectionIndex,
-    setActiveTheme,
-    setIsChromeHidden,
-    updateProgress,
-    particleStage,
-  ])
-
-  // Main 3D ScrollTrigger + Canvas 2D & DOM Projection Loop
-  useEffect(() => {
-    if (prefersReducedMotion) return
-
-    const sectionEl = sectionRef.current
-    const canvasEl = canvasRef.current
-    if (!sectionEl || !canvasEl) return
-
-    const ctx = canvasEl.getContext('2d')
-    let vw = window.innerWidth
-    let vh = window.innerHeight
-    let dpr = Math.min(window.devicePixelRatio || 1, 2)
-
-    const updateCanvasSize = () => {
-      vw = sectionEl.clientWidth || window.innerWidth
-      vh = sectionEl.clientHeight || window.innerHeight
-      dpr = Math.min(window.devicePixelRatio || 1, 2)
-      canvasEl.width = Math.round(vw * dpr)
-      canvasEl.height = Math.round(vh * dpr)
-    }
-    updateCanvasSize()
-
-    window.addEventListener('resize', updateCanvasSize)
-
-    // Pin section with ScrollTrigger
-    const st = ScrollTrigger.create({
-      id: 'experience',
-      trigger: sectionEl,
-      start: 'top top',
-      end: `+=${totalPinVh}%`,
-      pin: true,
-      pinSpacing: true,
-      scrub: true,
-      onEnter: () => {
-        stateRef.current.isActive = true
-        setActiveSection('experience')
-        setActiveSectionIndex('05')
-        setActiveTheme('dark')
-        setIsChromeHidden(true)
-        particleStage.setVisibility(0)
-      },
-      onEnterBack: () => {
-        stateRef.current.isActive = true
-        setActiveSection('experience')
-        setActiveSectionIndex('05')
-        setActiveTheme('dark')
-        setIsChromeHidden(true)
-        particleStage.setVisibility(0)
-      },
-      onLeave: () => {
-        stateRef.current.isActive = false
-        setIsChromeHidden(false)
-        updateProgress('experience', 1)
-        setActiveSection('contact')
-        setActiveSectionIndex('06')
-      },
-      onLeaveBack: () => {
-        stateRef.current.isActive = false
-        setIsChromeHidden(false)
-        updateProgress('experience', 0)
-        setActiveSection('projects')
-        setActiveSectionIndex('04')
-      },
-      onUpdate: (self) => {
-        const p = self.progress
-        stateRef.current.scrollProgress = p
-        updateProgress('experience', p)
-        stateRef.current.targetU = mapScrollProgressToU(scrollLut, p)
-      },
-    })
-    stRef.current = st
-
-    // Render frame function synced to gsap.ticker
-    const renderFrame = (time, deltaTime) => {
-      const s = stateRef.current
-      if (!s.isActive) return
-
-      const rawDtMs = deltaTime || 16.6
-      const dt = Math.min(0.05, rawDtMs / 1000)
-
-      // Auto-scale dust & blur if frame time exceeds 22ms sustained
-      s.avgFrameMs = s.avgFrameMs * 0.92 + rawDtMs * 0.08
-      if (s.avgFrameMs > 22.5) {
-        s.slowFrameStreak += 1
-        if (s.slowFrameStreak > 35 && !s.lowPerfMode) {
-          s.lowPerfMode = true
-        }
-      } else {
-        s.slowFrameStreak = Math.max(0, s.slowFrameStreak - 1)
-      }
-
-      const isMobile = vw < 900
-      const swayScale = isMobile ? 0.36 : 1.0
-
-      // 1. Update camera path position u with single light damping step (lerp ~0.12)
-      s.currentU += (s.targetU - s.currentU) * JOURNEY_TUNING.cameraLerp
-      const camU = s.currentU
-      const numEntries = JOURNEY_ENTRIES.length
-      const maxCardIdx = numEntries - 1
-
-      // Overall normalized progress [0..1]
-      const progressNorm = s.scrollProgress
-
-      // Update vertical category line red fill & bottom edge progress line
-      if (categoryFillRef.current) {
-        categoryFillRef.current.style.transform = `scaleY(${progressNorm.toFixed(4)})`
-      }
-      if (bottomProgressRef.current) {
-        bottomProgressRef.current.style.transform = `scaleX(${progressNorm.toFixed(4)})`
-      }
-
-      // 2. Entry Heading Collapse:
-      // Fully visible at start (camU <= -0.15), collapses & fades as first card comes into focus (camU: -0.15 -> 0.55)
-      if (headerMainRef.current) {
-        const entryReveal = smoothstep(-0.68, -0.35, camU)
-        const collapseT = smoothstep(-0.12, 0.55, camU)
-        const headerAlpha = entryReveal * (1 - collapseT)
-        const headerScale = 1 - 0.09 * collapseT
-        const headerY = (1 - entryReveal) * 14 - collapseT * 12
-
-        headerMainRef.current.style.opacity = headerAlpha.toFixed(3)
-        headerMainRef.current.style.transform = `translate3d(0, ${headerY.toFixed(
-          1
-        )}px, 0) scale(${headerScale.toFixed(3)})`
-        headerMainRef.current.style.pointerEvents =
-          headerAlpha > 0.15 ? 'auto' : 'none'
-      }
-
-      // 3. Bottom-Center Scroll Cue (visible during first part only)
-      if (scrollCueWrapRef.current) {
-        const cueAlpha =
-          smoothstep(-0.62, -0.32, camU) * (1 - smoothstep(0.05, 0.65, camU))
-        scrollCueWrapRef.current.style.opacity = cueAlpha.toFixed(3)
-      }
-
-      // 4. Outro / Closing Frame ("To be continued..." + "CONTINUE ->") & Soft Exit Crossfade
-      const outroStartU = maxCardIdx + 0.32
-      const outroFullU = maxCardIdx + 0.85
-      const outroProgress = smoothstep(outroStartU, outroFullU, camU)
-      const horizonFadeOut = 1 - smoothstep(maxCardIdx + 0.45, maxCardIdx + 1.32, camU)
-
-      if (outroFrameRef.current) {
-        const outroY = (1 - outroProgress) * 18
-        outroFrameRef.current.style.opacity = outroProgress.toFixed(3)
-        outroFrameRef.current.style.transform = `translate3d(-50%, calc(-50% + ${outroY.toFixed(
-          1
-        )}px), 0)`
-        outroFrameRef.current.style.pointerEvents =
-          outroProgress > 0.45 ? 'auto' : 'none'
-      }
-
-      if (exitCurtainRef.current) {
-        const exitFade = smoothstep(0.95, 1.0, progressNorm)
-        exitCurtainRef.current.style.opacity = (exitFade * 0.65).toFixed(3)
-      }
-
-      // Track nearest focused card, active category, and active year
-      const nearestIdx = Math.max(0, Math.min(maxCardIdx, Math.round(camU)))
-      if (nearestIdx !== s.lastFocusedIdx) {
-        s.lastFocusedIdx = nearestIdx
-        s.pulseNodeIdx = nearestIdx
-        s.pulseTimer = 0
-        setFocusedIndex(nearestIdx)
-        setActiveCategory(JOURNEY_ENTRIES[nearestIdx].category)
-
-        const newYear = JOURNEY_ENTRIES[nearestIdx].year
-        if (newYear !== s.lastYear) {
-          s.lastYear = newYear
-          setActiveYear(newYear)
-        }
-      }
-      if (Math.abs(nearestIdx - nearCameraWindow) >= 1) {
-        setNearCameraWindow(nearestIdx)
-      }
-      s.pulseTimer += dt
-
-      // 5. Compute Virtual Camera Pose on the 3D Rail
-      const focusPt = evaluateSpline(splineData, camU, swayScale)
-      const lookAheadPt = evaluateSpline(splineData, camU + 1.5, swayScale)
-
-      const camOffsetX = isMobile ? 0 : JOURNEY_TUNING.camOffsetX
-      const camOffsetY = isMobile ? -85 : JOURNEY_TUNING.camOffsetY
-      const camYaw = isMobile ? 0.035 : JOURNEY_TUNING.camYawRad
-      const camPitch = isMobile ? -0.045 : JOURNEY_TUNING.camPitchRad
-
-      const camX = focusPt.x * 0.58 + camOffsetX
-      const camY = focusPt.y * 0.65 + camOffsetY
-      const camZ = focusPt.z - JOURNEY_TUNING.focusDistZ
-
-      // Subtle camera banking roll (+/- 3 deg) proportional to lateral curvature
-      const curvatureX = (lookAheadPt.tx - focusPt.tx) / JOURNEY_TUNING.stepZ
-      const maxBank = isMobile ? 1.2 : JOURNEY_TUNING.maxBankDeg
-      const bankRad = Math.max(
-        (-maxBank * Math.PI) / 180,
-        Math.min((maxBank * Math.PI) / 180, curvatureX * 0.22)
-      )
-      const cosRoll = Math.cos(bankRad)
-      const sinRoll = Math.sin(bankRad)
-
-      const focal =
-        JOURNEY_TUNING.focalLength *
-        (isMobile ? Math.max(0.68, vw / 960) : vw / 1440)
-
-      // Reserve a ~240px left gutter on desktop so the left Journey Index never overlaps cards
-      const leftGutterPx = isMobile ? 16 : Math.min(260, Math.max(220, vw * 0.17))
-      const screenCenterX = isMobile
-        ? vw * 0.5
-        : Math.max(leftGutterPx + 240, vw * 0.52)
-      // Elevated projection center placed in upper-middle viewport
-      const screenCenterY = isMobile ? vh * 0.46 : vh * 0.44
-
-      const cosYaw = Math.cos(camYaw)
-      const sinYaw = Math.sin(camYaw)
-      const cosPitch = Math.cos(camPitch)
-      const sinPitch = Math.sin(camPitch)
-
-      const projectPoint = (wx, wy, wz) => {
-        const dx = wx - camX
-        const dy = wy - camY
-        const dz = wz - camZ
-
-        const rx1 = dx * cosYaw - dz * sinYaw
-        const rz1 = dx * sinYaw + dz * cosYaw
-
-        const ry2 = dy * cosPitch - rz1 * sinPitch
-        const rz2 = dy * sinPitch + rz1 * cosPitch
-
-        if (rz2 <= 45) return null
-
-        const rx3 = rx1 * cosRoll - ry2 * sinRoll
-        const ry3 = rx1 * sinRoll + ry2 * cosRoll
-
-        const scale = focal / rz2
         return {
-          sx: screenCenterX + rx3 * scale,
-          sy: screenCenterY + ry3 * scale,
-          scale,
-          depthZ: rz2,
-        }
+          index: i,
+          side,
+          nodeX: sample.x,
+          nodeY: sample.y,
+          nodeZ: sample.z,
+          anchorX: sample.x + lateralOffset,
+          anchorY: sample.y + verticalLift,
+          anchorZ: sample.z,
+        };
+      });
+
+    return {
+      desktop: {
+        spline: splineDesktop,
+        entries3D: computeEntryWorldPositions(splineDesktop, false),
+      },
+      mobile: {
+        spline: splineMobile,
+        entries3D: computeEntryWorldPositions(splineMobile, true),
+      },
+      motes,
+    };
+  }, []);
+
+  // Detect prefers-reduced-motion
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPref = () => setPrefersReducedMotion(mq.matches);
+    updateMotionPref();
+    mq.addEventListener('change', updateMotionPref);
+    return () => mq.removeEventListener('change', updateMotionPref);
+  }, []);
+
+  /**
+   * Core per-frame render function (Canvas 2D spline + stems + dust + DOM 3D cards)
+   */
+  const renderSceneFrame = useCallback(
+    (progress) => {
+      const state = animStateRef.current;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const { viewportW: width, viewportH: height, dpr, isMobile } = state;
+      const graph = isMobile ? sceneGraph.mobile : sceneGraph.desktop;
+      const { spline, entries3D } = graph;
+      const { motes } = sceneGraph;
+
+      // Map scroll progress [0..1] -> continuous entry index s & outro progress
+      const { continuousIndex, outroProgress } =
+        scrollProgressToContinuousIndex(progress, scrollMap);
+
+      // Camera world Z tracks continuousIndex along the spline
+      const camTargetZ = (continuousIndex + 0.65) * spline.Z_SPACING;
+      const camZ = camTargetZ - 320;
+      const camSample = sampleSplineAtZ(spline, camZ);
+      const lookSample = sampleSplineAtZ(spline, camTargetZ);
+
+      // Camera sits slightly above the spline and Gently banks into turns
+      const cam = {
+        x: lerp(camSample.x, lookSample.x, 0.35),
+        y: lerp(camSample.y, lookSample.y, 0.35) + (isMobile ? 54 : 68),
+        z: camZ,
+        yaw: clamp((lookSample.x - camSample.x) * 0.00055, -0.14, 0.14),
+        pitch: -0.075,
+      };
+
+      const focalLength = isMobile
+        ? Math.min(width, height) * 0.88
+        : Math.min(width, height) * 0.92;
+
+      // Shift optical center slightly right on desktop to respect the 240px left category gutter
+      const leftGutterPx = isMobile ? 16 : Math.max(230, width * 0.17);
+      const opticalCenterX = isMobile
+        ? width * 0.5
+        : leftGutterPx + (width - leftGutterPx) * 0.49;
+
+      // Clear 2D Canvas
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      // ----------------------------------------------------------------------
+      // 1. Render Sparse Ambient Dust Motes (max 48, no glow)
+      // ----------------------------------------------------------------------
+      for (let i = 0; i < motes.length; i++) {
+        const m = motes[i];
+        const dz = m.z - cam.z;
+        if (dz <= 40 || dz > 1850) continue;
+
+        const sp = sampleSplineAtZ(spline, m.z);
+        const proj = projectPoint3D(
+          sp.x + m.xOffset,
+          sp.y + m.yOffset,
+          m.z,
+          cam,
+          width,
+          height,
+          focalLength,
+          opticalCenterX
+        );
+        if (!proj) continue;
+
+        const depthFade =
+          smoothstep(40, 220, dz) * (1 - smoothstep(1100, 1850, dz));
+        const alpha = m.baseAlpha * depthFade * (1 - outroProgress * 0.7);
+        if (alpha <= 0.01) continue;
+
+        ctx.fillStyle = `rgba(245, 242, 238, ${alpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(
+          proj.x,
+          proj.y,
+          Math.max(0.6, m.radius * clamp(proj.scale * 0.9, 0.5, 1.6)),
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
       }
 
-      // 6. Entry Stroke Reveal & Dust Alpha
-      const entryLineReveal = smoothstep(-0.65, -0.10, camU)
-      const dustGlobalAlpha = smoothstep(-0.60, -0.15, camU) * horizonFadeOut
+      // ----------------------------------------------------------------------
+      // 2. Project & Draw the Winding 3D Spline (Future Line + Travelled Line)
+      // ----------------------------------------------------------------------
+      const zStart = cam.z + 24;
+      const zEnd = cam.z + 1850;
+      const STEP_COUNT = 96;
+      const zStep = (zEnd - zStart) / STEP_COUNT;
 
-      ctx.save()
-      ctx.scale(dpr, dpr)
-      ctx.clearRect(0, 0, vw, vh)
-
-      // Draw 3D Atmospheric Dust
-      const activeDustLimit = isMobile
-        ? JOURNEY_TUNING.dustCountMobile
-        : s.lowPerfMode
-        ? Math.floor(dustSpecks.length * 0.5)
-        : dustSpecks.length
-
-      if (dustGlobalAlpha > 0.01) {
-        for (let i = 0; i < activeDustLimit; i++) {
-          const sp = dustSpecks[i]
-          const driftX = Math.sin(time * sp.speed + sp.phase) * 14
-          const driftY = Math.cos(time * sp.speed * 0.8 + sp.phase) * 9
-          const wx = sp.baseX * swayScale + sp.spreadX * swayScale + driftX
-          const proj = projectPoint(wx, sp.y + driftY, sp.z)
-          if (!proj || proj.depthZ > 3200 || proj.depthZ < 120) continue
-
-          const distFade =
-            smoothstep(3200, 1800, proj.depthZ) *
-            smoothstep(120, 350, proj.depthZ)
-          const alpha = sp.alpha * distFade * dustGlobalAlpha
-          if (alpha < 0.02) continue
-
-          const radius = Math.max(
-            0.6,
-            Math.min(2.4, sp.size * proj.scale * 1.15)
-          )
-          ctx.fillStyle = sp.isRed
-            ? `rgba(232, 40, 60, ${(alpha * 1.15).toFixed(3)})`
-            : `rgba(245, 242, 238, ${alpha.toFixed(3)})`
-          ctx.beginPath()
-          ctx.arc(proj.sx, proj.sy, radius, 0, Math.PI * 2)
-          ctx.fill()
-        }
-      }
-
-      // 7. Sample & Draw the Winding 3D Spline Path with Entry Draw-In & Outro Horizon Fade
-      const uMinDraw = camU - 1.18
-      const maxDrawSpan = (isMobile ? 2.85 : 4.15) * (0.18 + 0.82 * entryLineReveal)
-      const uMaxDraw = camU + maxDrawSpan
-      const stepU = 0.035
-      const projectedCurve = []
-
-      for (let u = uMinDraw; u <= uMaxDraw; u += stepU) {
-        const pt = evaluateSpline(splineData, u, swayScale)
-        const proj = projectPoint(pt.x, pt.y, pt.z)
+      const projectedSplinePts = [];
+      for (let i = 0; i <= STEP_COUNT; i++) {
+        const wz = zStart + i * zStep;
+        const sp = sampleSplineAtZ(spline, wz);
+        const proj = projectPoint3D(
+          sp.x,
+          sp.y,
+          wz,
+          cam,
+          width,
+          height,
+          focalLength,
+          opticalCenterX
+        );
         if (proj) {
-          projectedCurve.push({ u, ...proj })
+          projectedSplinePts.push({
+            ...proj,
+            wz,
+          });
         }
       }
 
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
+      if (projectedSplinePts.length > 1) {
+        // 2a. Untravelled / Future Path: thin warm-white hairline
+        ctx.beginPath();
+        ctx.moveTo(projectedSplinePts[0].x, projectedSplinePts[0].y);
+        for (let i = 1; i < projectedSplinePts.length; i++) {
+          const prev = projectedSplinePts[i - 1];
+          const curr = projectedSplinePts[i];
+          const midX = (prev.x + curr.x) * 0.5;
+          const midY = (prev.y + curr.y) * 0.5;
+          ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+        }
+        const lastPt = projectedSplinePts[projectedSplinePts.length - 1];
+        ctx.lineTo(lastPt.x, lastPt.y);
 
-      for (let i = projectedCurve.length - 1; i >= 1; i--) {
-        const pA = projectedCurve[i]
-        const pB = projectedCurve[i - 1]
-        const uMid = 0.5 * (pA.u + pB.u)
-        const d = uMid - camU
+        const futureGrad = ctx.createLinearGradient(
+          0,
+          height,
+          0,
+          height * 0.28
+        );
+        futureGrad.addColorStop(0, 'rgba(245, 242, 238, 0.34)');
+        futureGrad.addColorStop(0.55, 'rgba(245, 242, 238, 0.20)');
+        futureGrad.addColorStop(1, 'rgba(245, 242, 238, 0.02)');
+        ctx.strokeStyle = futureGrad;
+        ctx.lineWidth = 1.35;
+        ctx.stroke();
 
-        const baseWidth = Math.max(0.55, Math.min(2.6, 1.9 * pA.scale))
+        // 2b. Travelled Path (up to current focus Z): 1.75px solid accent red (#E8283C)
+        const travelledPts = projectedSplinePts.filter(
+          (pt) => pt.wz <= camTargetZ + 12
+        );
+        if (travelledPts.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(travelledPts[0].x, travelledPts[0].y);
+          for (let i = 1; i < travelledPts.length; i++) {
+            const prev = travelledPts[i - 1];
+            const curr = travelledPts[i];
+            const midX = (prev.x + curr.x) * 0.5;
+            const midY = (prev.y + curr.y) * 0.5;
+            ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+          }
+          const lastTrav = travelledPts[travelledPts.length - 1];
+          ctx.lineTo(lastTrav.x, lastTrav.y);
+          ctx.strokeStyle = '#E8283C';
+          ctx.lineWidth = 1.85;
+          ctx.stroke();
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // 3. Update 3D Cards, Connector Stems, and Anchor Nodes
+      // ----------------------------------------------------------------------
+      const { maxVisibleAhead, maxVisibleBehind, maxDepthBlurPx } =
+        JOURNEY_CAMERA_CONFIG;
+
+      let nearestIdx = 0;
+      let nearestAbsD = Infinity;
+
+      for (let i = 0; i < JOURNEY_ENTRIES.length; i++) {
+        const entry = JOURNEY_ENTRIES[i];
+        const pos3D = entries3D[i];
+        const cardEl = cardRefs.current[i];
+
+        // Signed distance in entry-steps:
+        // d > 0 -> ahead of camera (in the distance)
+        // d = 0 -> in primary reading focus
+        // d < 0 -> passed / receding toward camera
+        const d = i - continuousIndex;
+        const absD = Math.abs(d);
+
+        if (absD < nearestAbsD) {
+          nearestAbsD = absD;
+          nearestIdx = i;
+        }
+
+        // Cull cards outside visible range [ -maxVisibleBehind, +maxVisibleAhead ]
+        const isVisible =
+          d <= maxVisibleAhead && d >= -maxVisibleBehind && outroProgress < 0.98;
+
+        if (!isVisible) {
+          if (cardEl && cardEl.style.display !== 'none') {
+            cardEl.style.display = 'none';
+            cardEl.style.pointerEvents = 'none';
+          }
+          continue;
+        }
+
+        // Project spline node and card anchor point
+        const nodeScreen = projectPoint3D(
+          pos3D.nodeX,
+          pos3D.nodeY,
+          pos3D.nodeZ,
+          cam,
+          width,
+          height,
+          focalLength,
+          opticalCenterX
+        );
+        const anchorScreen = projectPoint3D(
+          pos3D.anchorX,
+          pos3D.anchorY,
+          pos3D.anchorZ,
+          cam,
+          width,
+          height,
+          focalLength,
+          opticalCenterX
+        );
+
+        if (!nodeScreen || !anchorScreen) {
+          if (cardEl && cardEl.style.display !== 'none') {
+            cardEl.style.display = 'none';
+            cardEl.style.pointerEvents = 'none';
+          }
+          continue;
+        }
+
+        // Compute scale across the 4 lifecycle states:
+        // Far -> Emerging -> Focused (|d| < 0.22) -> Receding
+        let cardScale = 1;
+        let blurPx = 0;
+        const isFocused = absD <= 0.22 && outroProgress < 0.25;
 
         if (d > 0) {
-          const farFade = smoothstep(maxDrawSpan, 0.2, d)
-          const alpha = (0.12 + 0.42 * farFade) * horizonFadeOut
-          if (alpha > 0.01) {
-            ctx.strokeStyle = `rgba(245, 242, 238, ${alpha.toFixed(3)})`
-            ctx.lineWidth = baseWidth
-            ctx.beginPath()
-            ctx.moveTo(pA.sx, pA.sy)
-            ctx.lineTo(pB.sx, pB.sy)
-            ctx.stroke()
-          }
+          // Ahead of camera (Far -> Emerging -> Focused)
+          const normAhead = clamp(d / maxVisibleAhead, 0, 1);
+          cardScale = lerp(1.0, 0.36, Math.pow(normAhead, 0.88));
+          blurPx =
+            d > 0.35
+              ? smoothstep(0.35, maxVisibleAhead, d) * maxDepthBlurPx
+              : 0;
         } else {
-          const nearFade = smoothstep(-1.18, -0.35, d) * horizonFadeOut
-          const bloomAlpha = 0.22 * nearFade
-          const coreAlpha = 0.92 * nearFade
-
-          if (bloomAlpha > 0.01) {
-            ctx.strokeStyle = `rgba(232, 40, 60, ${bloomAlpha.toFixed(3)})`
-            ctx.lineWidth = baseWidth * 2.8
-            ctx.beginPath()
-            ctx.moveTo(pA.sx, pA.sy)
-            ctx.lineTo(pB.sx, pB.sy)
-            ctx.stroke()
-          }
-
-          if (coreAlpha > 0.01) {
-            ctx.strokeStyle = `rgba(245, 242, 238, ${coreAlpha.toFixed(3)})`
-            ctx.lineWidth = baseWidth * 1.15
-            ctx.beginPath()
-            ctx.moveTo(pA.sx, pA.sy)
-            ctx.lineTo(pB.sx, pB.sy)
-            ctx.stroke()
-          }
-        }
-      }
-
-      // 8. Project Each Card, Draw Node Dots & 1px Stems on Canvas, and Position DOM Cards
-      const maxVisibleAhead = isMobile ? 2.35 : 3.5
-      for (let i = numEntries - 1; i >= 0; i--) {
-        const cardEl = cardRefs.current[i]
-        const d = i - camU
-
-        // Outside lifecycle bounds or unrevealed during entry stroke draw: hide completely
-        if (d > maxVisibleAhead || d < -1.2 || i > uMaxDraw - 0.15) {
-          if (cardEl) {
-            cardEl.style.display = 'none'
-            cardEl.style.opacity = '0'
-          }
-          continue
+          // Passing camera (Focused -> Receding)
+          const normBehind = clamp(-d / maxVisibleBehind, 0, 1);
+          cardScale = lerp(1.0, 1.15, Math.pow(normBehind, 0.92));
+          blurPx = smoothstep(0.28, maxVisibleBehind, -d) * 1.4;
         }
 
-        const nodePt = evaluateSpline(splineData, i, swayScale)
-        const proj = projectPoint(nodePt.x, nodePt.y, nodePt.z)
-        if (!proj) {
-          if (cardEl) {
-            cardEl.style.display = 'none'
-            cardEl.style.opacity = '0'
+        // Strictly 100% opaque card surface across 90% of its lifecycle!
+        // Only fade cardOpacity over the first ~5% (d in [2.18, 2.35]) and last ~5% (d in [-1.05, -0.88])
+        // when the card is practically invisible in the background fog and cannot overlap anything.
+        const entryFadeStart = maxVisibleAhead - 0.17; // 2.18
+        const exitFadeStart = -(maxVisibleBehind - 0.17); // -0.88
+        let cardOpacity = 1.0;
+        if (d > entryFadeStart) {
+          cardOpacity = clamp((maxVisibleAhead - d) / 0.17, 0, 1);
+        } else if (d < exitFadeStart) {
+          cardOpacity = clamp((d + maxVisibleBehind) / 0.17, 0, 1);
+        }
+
+        // Depth "fog": solid --bg-dark (#0E0E10) overlay inside the card whose alpha increases with distance
+        let fogAlpha = 0;
+        if (d > 0.22) {
+          const fogT = smoothstep(0.22, maxVisibleAhead, d);
+          fogAlpha = lerp(0, 0.92, Math.pow(fogT, 0.85));
+        } else if (d < -0.18) {
+          const fogT = smoothstep(0.18, maxVisibleBehind, -d);
+          fogAlpha = lerp(0, 0.92, Math.pow(fogT, 0.9));
+        }
+
+        if (outroProgress > 0) {
+          fogAlpha = Math.max(fogAlpha, smoothstep(0, 0.82, outroProgress) * 0.95);
+          if (outroProgress > 0.82) {
+            cardOpacity *= 1 - smoothstep(0.82, 0.98, outroProgress);
           }
-          continue
         }
 
-        const placement = CARD_PLACEMENTS[i % CARD_PLACEMENTS.length]
-        const anchorXRatio = isMobile ? 0.5 : placement.anchorXRatio
-
-        let cardScale = 1
-        let cardOpacity = 1
-        let blurPx = 0
-        let rotY = isMobile ? placement.baseRotY * 0.35 : placement.baseRotY
-        let rotZ = isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ
-        let rotX = isMobile ? 0.8 : 1.2
-        let floatOffsetY = 0
-        let recedeOffsetX = 0
-        let recedeOffsetY = 0
-        let stemAlpha = 1
-
-        if (d > 1.0) {
-          const tEmerge = smoothstep(maxVisibleAhead, 1.0, d)
-          cardScale = isMobile
-            ? 0.24 + 0.38 * tEmerge
-            : 0.16 + 0.42 * tEmerge
-          cardOpacity = (isMobile ? 0.38 : 0.55) * tEmerge
-          blurPx =
-            isMobile || s.lowPerfMode
-              ? 0
-              : Math.round((1 - tEmerge) * 3.5 * 2) / 2
-          rotY =
-            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) +
-            placement.sideSign * (1 - tEmerge) * (isMobile ? 6 : 16)
-          rotZ =
-            (isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ) *
-            (1.4 - 0.4 * tEmerge)
-          stemAlpha = tEmerge * 0.75
-        } else if (d >= 0) {
-          const tApp = smoothstep(1.0, 0.0, d)
-          cardScale = (isMobile ? 0.62 : 0.58) + (isMobile ? 0.38 : 0.42) * tApp
-          cardOpacity =
-            (isMobile ? 0.38 : 0.55) +
-            (isMobile ? 0.62 : 0.45) * smoothstep(1.0, 0.22, d)
-          blurPx =
-            isMobile || s.lowPerfMode
-              ? 0
-              : d > 0.45
-              ? Math.round(((d - 0.45) / 0.55) * 1.5 * 2) / 2
-              : 0
-          rotY =
-            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) *
-            (1.15 - 0.15 * tApp)
-          rotZ = isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ
-
-          const focusWeight = smoothstep(0.35, 0.0, Math.abs(d))
-          floatOffsetY = Math.sin(time * 1.7 + i) * 3.0 * focusWeight
-          stemAlpha = 0.75 + 0.25 * tApp
-        } else {
-          // RECEDE (d: 0.0 -> -1.2)
-          const r = smoothstep(0.0, -1.2, d)
-          cardScale = 1.0 - 0.54 * r
-          cardOpacity = Math.pow(1.0 - r, 1.35)
-          blurPx =
-            isMobile || s.lowPerfMode ? 0 : Math.round(r * 3.5 * 2) / 2
-          rotY =
-            (isMobile ? placement.baseRotY * 0.35 : placement.baseRotY) +
-            placement.sideSign * r * (isMobile ? 10 : 24)
-          rotZ =
-            (isMobile ? placement.baseRotZ * 0.35 : placement.baseRotZ) +
-            placement.sideSign * r * (isMobile ? 2 : 4)
-          recedeOffsetX = placement.sideSign * r * (isMobile ? 75 : 195)
-          recedeOffsetY = -r * 38
-          stemAlpha = Math.max(0, 1.0 - r * 1.6)
-        }
-
-        // Stem screen length & left-gutter guard on desktop
-        const stemLen = (isMobile ? 44 : placement.stemHeight) * cardScale
+        // Clamp horizontal card position so it never intrudes into the left category gutter or right edge
         const approxHalfCardW =
-          (JOURNEY_ENTRIES[i].size === 'major' ? 270 : 200) * cardScale
-        const minSafeAttachX = isMobile
-          ? vw * 0.5
-          : leftGutterPx + approxHalfCardW * (2 * anchorXRatio)
+          (isMobile
+            ? Math.min(width * 0.43, 175)
+            : entry.layout === 'side'
+            ? 300
+            : 252) * cardScale;
 
-        const rawAttachX = isMobile
-          ? vw * 0.5 + (proj.sx - vw * 0.5) * 0.35 + recedeOffsetX
-          : Math.max(minSafeAttachX, proj.sx + recedeOffsetX)
-        const attachY = proj.sy - stemLen + floatOffsetY + recedeOffsetY
+        const minCenterX = leftGutterPx + approxHalfCardW;
+        const maxCenterX = width - 28 - approxHalfCardW;
+        const clampedCardX = isMobile
+          ? clamp(anchorScreen.x, width * 0.14 + approxHalfCardW * 0.5, width * 0.86 - approxHalfCardW * 0.5)
+          : clamp(anchorScreen.x, minCenterX, Math.max(minCenterX, maxCenterX));
 
-        // Draw 1px Stem (warm grey at card bottom -> accent red at node)
+        // Clamp vertical bottom position so taller 'top' cards never clip the top HUD or bottom edge
+        const approxCardH =
+          (isMobile
+            ? 325
+            : entry.layout === 'top'
+            ? Math.min(445, height * 0.6)
+            : Math.min(340, height * 0.52)) * cardScale;
+        const minTopY = isMobile ? 76 : Math.max(76, height * 0.1);
+        const maxBottomY = height - (isMobile ? 72 : 34);
+        const clampedCardY = clamp(
+          anchorScreen.y,
+          minTopY + approxCardH,
+          Math.max(minTopY + approxCardH, maxBottomY)
+        );
+
+        // Draw hairline stem connecting spline node -> card bottom center
+        const stemVisibility = (1 - fogAlpha * 0.92) * cardOpacity;
+        const stemAlpha = clamp(
+          stemVisibility * (isFocused ? 0.62 : 0.28),
+          0,
+          0.75
+        );
         if (stemAlpha > 0.02) {
-          const grad = ctx.createLinearGradient(
-            rawAttachX,
-            attachY,
-            proj.sx,
-            proj.sy
-          )
-          grad.addColorStop(
-            0,
-            `rgba(245, 242, 238, ${(stemAlpha * 0.36).toFixed(3)})`
-          )
-          grad.addColorStop(
-            1,
-            `rgba(232, 40, 60, ${(stemAlpha * 0.85).toFixed(3)})`
-          )
-
-          ctx.strokeStyle = grad
-          ctx.lineWidth = 1
-          ctx.beginPath()
-          ctx.moveTo(rawAttachX, attachY)
-          ctx.lineTo(proj.sx, proj.sy)
-          ctx.stroke()
+          ctx.beginPath();
+          ctx.moveTo(nodeScreen.x, nodeScreen.y);
+          ctx.lineTo(clampedCardX, clampedCardY);
+          ctx.strokeStyle = isFocused
+            ? `rgba(232, 40, 60, ${stemAlpha.toFixed(3)})`
+            : `rgba(245, 242, 238, ${stemAlpha.toFixed(3)})`;
+          ctx.lineWidth = isFocused ? 1.25 : 1;
+          ctx.stroke();
         }
 
-        // Draw Node Dot on the Spline (warm white core + thin red ring)
-        const isFocusedNode = Math.abs(d) < 0.24
-        const nodeAlpha =
-          d >= 0
-            ? smoothstep(maxVisibleAhead, 0.8, d)
-            : smoothstep(-1.2, -0.2, d)
+        // Draw spline anchor node (small crisp circle, solid red when focused/passed, hollow when ahead)
+        const isPassedOrFocused = d <= 0.22;
+        const nodeRadius = clamp(
+          (isFocused ? 5.2 : 3.6) * clamp(nodeScreen.scale * 0.95, 0.55, 1.35),
+          2.2,
+          6.5
+        );
+        ctx.beginPath();
+        ctx.arc(nodeScreen.x, nodeScreen.y, nodeRadius, 0, Math.PI * 2);
+        if (isPassedOrFocused) {
+          ctx.fillStyle = `rgba(232, 40, 60, ${clamp(
+            stemVisibility * 0.95,
+            0.2,
+            1
+          ).toFixed(3)})`;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#0E0E10';
+          ctx.fill();
+          ctx.lineWidth = 1.3;
+          ctx.strokeStyle = `rgba(245, 242, 238, ${clamp(
+            stemVisibility * 0.65,
+            0.12,
+            0.75
+          ).toFixed(3)})`;
+          ctx.stroke();
+        }
 
-        if (nodeAlpha > 0.02) {
-          const ringRadius =
-            (isFocusedNode ? 7.5 : 5.2) *
-            Math.min(1.2, Math.max(0.55, cardScale))
-          const coreRadius =
-            (isFocusedNode ? 3.2 : 2.2) *
-            Math.min(1.2, Math.max(0.55, cardScale))
+        // Apply GPU transform, strict depth-sorted z-index, and internal fog alpha to DOM card element
+        if (cardEl) {
+          if (cardEl.style.display !== 'block') {
+            cardEl.style.display = 'block';
+          }
+          // Subtle perspective tilt that straightens to 0deg at focus
+          const tiltY = isFocused ? 0 : clamp(pos3D.side * d * -3.2, -7, 7);
+          const tiltX = isFocused ? 0 : clamp(d * 1.8, -4, 4);
 
-          if (s.pulseNodeIdx === i && s.pulseTimer < 1.15) {
-            const pNorm = s.pulseTimer / 1.15
-            const pulseR = ringRadius + pNorm * 16
-            const pulseA = (1 - pNorm) * 0.55 * nodeAlpha
-            ctx.strokeStyle = `rgba(232, 40, 60, ${pulseA.toFixed(3)})`
-            ctx.lineWidth = 1.2
-            ctx.beginPath()
-            ctx.arc(proj.sx, proj.sy, pulseR, 0, Math.PI * 2)
-            ctx.stroke()
+          // Strictly depth-sort z-index by distance so nearer cards always cover farther ones cleanly
+          const zIndex = Math.max(1, 1000 - Math.round(d * 100));
+
+          cardEl.style.zIndex = String(zIndex);
+          cardEl.style.opacity = cardOpacity.toFixed(3);
+          cardEl.style.setProperty('--card-fog-alpha', fogAlpha.toFixed(3));
+          cardEl.style.pointerEvents = isFocused ? 'auto' : 'none';
+          cardEl.style.transform = `translate3d(${clampedCardX.toFixed(
+            1
+          )}px, ${clampedCardY.toFixed(
+            1
+          )}px, 0) translate(-50%, -100%) scale(${cardScale.toFixed(
+            4
+          )}) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg)`;
+
+          if (blurPx > 0.15) {
+            cardEl.style.filter = `blur(${blurPx.toFixed(2)}px)`;
+          } else if (cardEl.style.filter !== 'none') {
+            cardEl.style.filter = 'none';
           }
 
-          ctx.fillStyle = `rgba(20, 20, 22, ${(nodeAlpha * 0.9).toFixed(3)})`
-          ctx.strokeStyle = `rgba(232, 40, 60, ${(
-            nodeAlpha * (isFocusedNode ? 0.95 : 0.65)
-          ).toFixed(3)})`
-          ctx.lineWidth = isFocusedNode ? 1.6 : 1.1
-          ctx.beginPath()
-          ctx.arc(proj.sx, proj.sy, ringRadius, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          ctx.fillStyle = `rgba(245, 242, 238, ${nodeAlpha.toFixed(3)})`
-          ctx.beginPath()
-          ctx.arc(proj.sx, proj.sy, coreRadius, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // Apply single 3D transform to the DOM Card
-        if (cardEl) {
-          cardEl.style.display = 'flex'
-          cardEl.style.opacity = cardOpacity.toFixed(3)
-          cardEl.style.zIndex = String(Math.round(1000 - d * 100))
-          cardEl.style.transformOrigin = `${anchorXRatio * 100}% 100%`
-          cardEl.style.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none'
-          cardEl.style.pointerEvents = Math.abs(d) < 0.65 ? 'auto' : 'none'
-
-          cardEl.style.transform =
-            `translate3d(${rawAttachX.toFixed(1)}px, ${attachY.toFixed(1)}px, 0) ` +
-            `translate(${(-anchorXRatio * 100).toFixed(1)}%, -100%) ` +
-            `scale(${cardScale.toFixed(3)}) ` +
-            `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(
-              2
-            )}deg) rotateZ(${rotZ.toFixed(2)}deg)`
+          if (isFocused) {
+            cardEl.classList.add('journey-card--focused');
+          } else {
+            cardEl.classList.remove('journey-card--focused');
+          }
         }
       }
 
-      ctx.restore()
+      ctx.restore();
+
+      // ----------------------------------------------------------------------
+      // 4. Sync Editorial HUD (Heading Shrink, Scroll Cue, Progress Bars, Outro)
+      // ----------------------------------------------------------------------
+      // Shrink top-left title to ~72% scale after scrolling into the path
+      if (headerTitleRef.current) {
+        const shrinkT = smoothstep(0.01, 0.08, progress);
+        const titleScale = lerp(1, 0.72, shrinkT);
+        const subOpacity = lerp(1, 0, smoothstep(0.01, 0.06, progress));
+        headerTitleRef.current.style.transform = `scale(${titleScale.toFixed(
+          3
+        )})`;
+        const subEl = headerTitleRef.current.querySelector(
+          '.journey-section__subtitle'
+        );
+        if (subEl) {
+          subEl.style.opacity = subOpacity.toFixed(3);
+        }
+      }
+
+      // Fade out bottom-center scroll cue after ~4% scroll progress
+      if (scrollCueWrapRef.current) {
+        const cueAlpha = 1 - smoothstep(0.005, 0.045, progress);
+        scrollCueWrapRef.current.style.opacity = cueAlpha.toFixed(3);
+      }
+
+      // Bottom-edge 2px hairline progress bar
+      if (bottomProgressFillRef.current) {
+        bottomProgressFillRef.current.style.transform = `scaleX(${clamp(
+          progress,
+          0,
+          1
+        ).toFixed(4)})`;
+      }
+
+      // Left category vertical line fill
+      if (categoryLineFillRef.current) {
+        categoryLineFillRef.current.style.transform = `scaleY(${clamp(
+          progress,
+          0,
+          1
+        ).toFixed(4)})`;
+      }
+
+      // Closing / Outro Frame ("To be continued..." + "CONTINUE ->")
+      if (outroRef.current) {
+        const outroAlpha = smoothstep(0.18, 0.72, outroProgress);
+        const outroY = lerp(22, 0, outroAlpha);
+        outroRef.current.style.opacity = outroAlpha.toFixed(3);
+        outroRef.current.style.transform = `translate3d(-50%, calc(-50% + ${outroY.toFixed(
+          1
+        )}px), 0)`;
+        outroRef.current.style.pointerEvents =
+          outroAlpha > 0.5 ? 'auto' : 'none';
+      }
+
+      // Soft dark crossfade curtain at the very end (progress > 0.96)
+      if (exitCurtainRef.current) {
+        const curtainAlpha = smoothstep(0.95, 1.0, progress) * 0.45;
+        exitCurtainRef.current.style.opacity = curtainAlpha.toFixed(3);
+      }
+
+      // Update React HUD states only when focused card / category / year changes
+      const focusedEntry = JOURNEY_ENTRIES[nearestIdx];
+      if (focusedEntry) {
+        if (state.lastFocusedIdx !== nearestIdx) {
+          state.lastFocusedIdx = nearestIdx;
+          setFocusedIndex(nearestIdx);
+        }
+        if (state.lastCategory !== focusedEntry.category) {
+          state.lastCategory = focusedEntry.category;
+          setActiveCategory(focusedEntry.category);
+        }
+        if (state.lastYear !== focusedEntry.year) {
+          state.lastYear = focusedEntry.year;
+          setActiveYear(focusedEntry.year);
+        }
+      }
+    },
+    [sceneGraph, scrollMap]
+  );
+
+  /**
+   * Setup Canvas sizing, ResizeObserver, and pinned GSAP ScrollTrigger
+   */
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setIsChromeHidden(false);
+      return undefined;
     }
 
-    gsap.ticker.add(renderFrame)
+    const sectionEl = sectionRef.current;
+    const canvasEl = canvasRef.current;
+    if (!sectionEl || !canvasEl) return undefined;
+
+    const state = animStateRef.current;
+
+    const updateCanvasSize = () => {
+      const rect = sectionEl.getBoundingClientRect();
+      const w = rect.width || window.innerWidth;
+      const h = rect.height || window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      state.viewportW = w;
+      state.viewportH = h;
+      state.dpr = dpr;
+      state.isMobile = w < 900;
+
+      canvasEl.width = Math.round(w * dpr);
+      canvasEl.height = Math.round(h * dpr);
+      canvasEl.style.width = `${w}px`;
+      canvasEl.style.height = `${h}px`;
+
+      renderSceneFrame(state.smoothProgress);
+    };
+
+    updateCanvasSize();
+
+    // RAF damping loop — only runs while section is active or settling
+    const tick = () => {
+      const diff = state.targetProgress - state.smoothProgress;
+      if (Math.abs(diff) > 0.00015) {
+        state.smoothProgress += diff * 0.14;
+        renderSceneFrame(state.smoothProgress);
+      } else {
+        state.smoothProgress = state.targetProgress;
+        renderSceneFrame(state.smoothProgress);
+      }
+
+      if (state.isActive || Math.abs(diff) > 0.00015) {
+        state.rafId = requestAnimationFrame(tick);
+      } else {
+        state.rafId = null;
+      }
+    };
+
+    const startLoop = () => {
+      if (!state.rafId) {
+        state.rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    const stopLoop = () => {
+      state.isActive = false;
+      if (state.rafId) {
+        cancelAnimationFrame(state.rafId);
+        state.rafId = null;
+      }
+    };
+
+    // Total scroll budget in px: uniform ~100vh per card + outroVh
+    const getTotalScrollPx = () => {
+      const vh = window.innerHeight || 900;
+      const { vhPerEntry, outroVh } = JOURNEY_CAMERA_CONFIG;
+      const totalVh =
+        scrollMap.totalWeight * vhPerEntry +
+        outroVh * 0.35;
+      return Math.round((totalVh / 100) * vh);
+    };
+
+    const st = ScrollTrigger.create({
+      id: 'journey',
+      trigger: sectionEl,
+      pin: true,
+      start: 'top top',
+      end: () => `+=${getTotalScrollPx()}`,
+      scrub: 0.6,
+      anticipatePin: 1,
+      invalidateOnRefresh: true,
+      onEnter: () => {
+        state.isActive = true;
+        setActiveTheme('dark');
+        setActiveSection('journey');
+        setActiveSectionIndex('05');
+        setIsChromeHidden(true);
+        startLoop();
+      },
+      onEnterBack: () => {
+        state.isActive = true;
+        setActiveTheme('dark');
+        setActiveSection('journey');
+        setActiveSectionIndex('05');
+        setIsChromeHidden(true);
+        startLoop();
+      },
+      onLeave: () => {
+        stopLoop();
+        setIsChromeHidden(false);
+        setActiveTheme('dark');
+        setActiveSection('contact');
+        setActiveSectionIndex('06');
+      },
+      onLeaveBack: () => {
+        stopLoop();
+        setIsChromeHidden(false);
+      },
+      onUpdate: (self) => {
+        state.targetProgress = self.progress;
+        updateProgress('journey', self.progress);
+        startLoop();
+      },
+    });
+
+    stRef.current = st;
+
+    const handleResize = () => {
+      updateCanvasSize();
+    };
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', updateCanvasSize)
-      gsap.ticker.remove(renderFrame)
-      st.kill()
-      setIsChromeHidden(false)
-    }
+      stopLoop();
+      window.removeEventListener('resize', handleResize);
+      st.kill();
+      stRef.current = null;
+      setIsChromeHidden(false);
+    };
   }, [
     prefersReducedMotion,
-    splineData,
-    scrollLut,
-    dustSpecks,
-    totalPinVh,
-    nearCameraWindow,
+    renderSceneFrame,
+    scrollMap,
     setActiveSection,
     setActiveSectionIndex,
     setActiveTheme,
     setIsChromeHidden,
     updateProgress,
-    particleStage,
-  ])
+  ]);
 
-  const focusedEntry = JOURNEY_ENTRIES[focusedIndex] || JOURNEY_ENTRIES[0]
+  /**
+   * Jump smoothly to the first entry of a clicked category
+   */
+  const handleCategoryJump = useCallback(
+    (category) => {
+      const targetEntryIdx = getFirstEntryIndexByCategory(category);
+      if (targetEntryIdx < 0) return;
+
+      if (prefersReducedMotion) {
+        const cardEl = cardRefs.current[targetEntryIdx];
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setActiveCategory(category);
+        setFocusedIndex(targetEntryIdx);
+        return;
+      }
+
+      const st = stRef.current;
+      if (!st) return;
+
+      const normProgress = entryIndexToScrollProgress(
+        targetEntryIdx,
+        scrollMap
+      );
+      const targetScrollY =
+        st.start + normProgress * Math.max(1, st.end - st.start);
+
+      const lenis = window.__lenis;
+      if (lenis && typeof lenis.scrollTo === 'function') {
+        lenis.scrollTo(targetScrollY, {
+          duration: 1.2,
+          easing: (t) => 1 - Math.pow(1 - t, 3),
+        });
+      } else {
+        window.scrollTo({ top: targetScrollY, behavior: 'smooth' });
+      }
+    },
+    [prefersReducedMotion, scrollMap]
+  );
+
+  /**
+   * Skip Timeline / Continue -> Smoothly scroll to the Connect section's ScrollTrigger start position
+   * (~1.6s, expo ease). Works from start, middle, last card, and outro.
+   */
+  const handleSkipTimeline = useCallback(
+    (e) => {
+      if (e) e.preventDefault();
+
+      // Immediately restore navbar chrome and pause the Journey canvas loop on skip
+      setIsChromeHidden(false);
+
+      const contactSt = ScrollTrigger.getById('contact');
+      const journeySt = stRef.current;
+      const targetScrollY =
+        (contactSt && typeof contactSt.start === 'number'
+          ? contactSt.start
+          : null) ??
+        (journeySt && typeof journeySt.end === 'number'
+          ? journeySt.end
+          : null);
+
+      const expoEase = (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t));
+      const lenis = window.__lenis;
+
+      if (lenis && typeof lenis.scrollTo === 'function' && targetScrollY !== null) {
+        lenis.scrollTo(targetScrollY, {
+          duration: 1.6,
+          easing: expoEase,
+          onComplete: () => {
+            ScrollTrigger.update();
+          },
+        });
+        return;
+      }
+
+      scrollTo('#contact', {
+        duration: 1.6,
+        easing: expoEase,
+      });
+    },
+    [scrollTo, setIsChromeHidden]
+  );
+
+  /**
+   * Keyboard navigation when section is in view (ArrowDown / ArrowRight / ArrowUp / ArrowLeft)
+   */
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
+
+    const handleKeyDown = (e) => {
+      const state = animStateRef.current;
+      if (!state.isActive) return;
+
+      // Ignore if focus is inside an input/textarea
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const nextIdx = Math.min(
+          JOURNEY_ENTRIES.length - 1,
+          state.lastFocusedIdx + 1
+        );
+        const st = stRef.current;
+        if (!st) return;
+        const normP = entryIndexToScrollProgress(nextIdx, scrollMap);
+        const targetY = st.start + normP * Math.max(1, st.end - st.start);
+        if (window.__lenis) {
+          window.__lenis.scrollTo(targetY, { duration: 0.75 });
+        } else {
+          window.scrollTo({ top: targetY, behavior: 'smooth' });
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prevIdx = Math.max(0, state.lastFocusedIdx - 1);
+        const st = stRef.current;
+        if (!st) return;
+        const normP = entryIndexToScrollProgress(prevIdx, scrollMap);
+        const targetY = st.start + normP * Math.max(1, st.end - st.start);
+        if (window.__lenis) {
+          window.__lenis.scrollTo(targetY, { duration: 0.75 });
+        } else {
+          window.scrollTo({ top: targetY, behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prefersReducedMotion, scrollMap]);
+
+  const currentYearTagline =
+    YEAR_MARKERS[activeYear] || YEAR_MARKERS[2022] || 'THE BEGINNING';
+  const focusedEntry = JOURNEY_ENTRIES[focusedIndex] || JOURNEY_ENTRIES[0];
 
   return (
     <section
       ref={sectionRef}
-      id="experience"
+      id="journey"
       data-theme="dark"
+      aria-label="05 — The Journey Timeline"
       className={`journey-section ${
         prefersReducedMotion ? 'journey-section--reduced-motion' : ''
       }`}
-      aria-label="05 The Journey Timeline"
     >
-      {/* Anchor alias so #achievements links also resolve here */}
-      <span id="achievements" className="journey-section__anchor" aria-hidden="true" />
+      {/* Compatibility anchor for #experience links */}
+      <div id="experience" className="journey-section__anchor" aria-hidden="true" />
 
-      {/* Visually Hidden Polite Live Region for Screen Readers */}
-      <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {`Journey category: ${activeCategory}, Year ${activeYear}. Milestone ${
-          focusedIndex + 1
-        } of ${JOURNEY_ENTRIES.length}: ${focusedEntry.title}`}
-      </div>
-
-      {/* 1. Matte Backdrop Vignette & Subtle Film Grain */}
+      {/* Subtle radial vignette + static film grain on section backdrop */}
       <div className="journey-section__vignette" aria-hidden="true" />
       <div className="journey-section__grain" aria-hidden="true" />
 
-      {/* 2. Canvas 2D Layer: 3D Projected Spline, Travelled Line, Nodes, Stems & Dust */}
+      {/* 2D Canvas for 3D-projected spline, travelled line, stems, nodes & dust motes */}
       {!prefersReducedMotion && (
         <canvas
           ref={canvasRef}
@@ -1085,62 +1229,76 @@ export default function Journey() {
         />
       )}
 
-      {/* 3. Fixed Editorial HUD: Skip Button (First Focusable Element!), Top-Left Masthead, Category Index, Year Marker */}
+      {/* Screen-reader live region announcing the focused milestone */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {focusedEntry
+          ? `${focusedEntry.catalogueNumber}, ${focusedEntry.displayDate || focusedEntry.year}: ${focusedEntry.title} (${focusedEntry.category})`
+          : ''}
+      </div>
+
+      {/* =====================================================================
+          EDITORIAL HUD OVERLAY (Pinned Chrome)
+          ===================================================================== */}
       <div className="journey-section__hud">
-        {/* Top-Right Skip Timeline Pill — First Focusable Element in the Section */}
+        {/* Top-Left Eyebrow & Dual-Font Section Heading */}
+        <header className="journey-section__header">
+          <div className="journey-section__eyebrow">
+            <span className="journey-section__eyebrow-num">
+              {JOURNEY_SECTION_META.index}
+            </span>
+            <span className="journey-section__eyebrow-sep" aria-hidden="true" />
+            <span className="journey-section__eyebrow-label">
+              {JOURNEY_SECTION_META.eyebrow}
+            </span>
+          </div>
+
+          <div ref={headerTitleRef} className="journey-section__title-row">
+            <h2 className="journey-section__title">
+              <span className="journey-section__title-the">
+                {JOURNEY_SECTION_META.titleLine1}
+              </span>
+              <span className="journey-section__title-journey">
+                {JOURNEY_SECTION_META.titleLine2}
+              </span>
+            </h2>
+            <p className="journey-section__subtitle">
+              {JOURNEY_SECTION_META.subtitle}
+            </p>
+          </div>
+        </header>
+
+        {/* Top-Right Skip Timeline Pill Button */}
         <button
           type="button"
           onClick={handleSkipTimeline}
           className="journey-section__skip-btn"
+          aria-label="Skip timeline to Let's Connect section"
         >
-          <span>SKIP TIMELINE</span>
+          <span>{JOURNEY_SECTION_META.skipLabel}</span>
           <span className="journey-section__skip-arrow" aria-hidden="true">
             →
           </span>
         </button>
 
-        {/* Top-Left Masthead ("04 | JOURNEY" stays visible; large "THE Journey" collapses after first card) */}
-        <header className="journey-section__header">
-          <div className="journey-section__eyebrow">
-            <span className="journey-section__eyebrow-num">05</span>
-            <span className="journey-section__eyebrow-sep" aria-hidden="true" />
-            <span>JOURNEY</span>
-          </div>
-
-          <div
-            ref={headerMainRef}
-            className="journey-section__title-row"
-          >
-            <h2 className="journey-section__title">
-              <span className="journey-section__title-the">THE</span>
-              <span className="journey-section__title-journey">Journey</span>
-            </h2>
-            <p className="journey-section__subtitle">
-              A timeline of experiences, achievements, and moments that shaped
-              who I am today.
-            </p>
-          </div>
-        </header>
-
-        {/* Desktop Left Category Navigation Track (>= 900px) */}
+        {/* Left Category Index (Desktop >= 900px) */}
         <nav
           className="journey-categories"
-          aria-label="Journey Categories"
+          aria-label="Timeline categories"
         >
           <div className="journey-categories__line" aria-hidden="true">
             <div
-              ref={categoryFillRef}
+              ref={categoryLineFillRef}
               className="journey-categories__line-fill"
             />
           </div>
-          {JOURNEY_CATEGORIES.map((category) => {
-            const meta = CATEGORY_META[category]
-            const isActive = activeCategory === category
+
+          {CATEGORY_META.map((cat) => {
+            const isActive = activeCategory === cat.id;
             return (
               <button
-                key={category}
+                key={cat.id}
                 type="button"
-                onClick={() => handleCategoryClick(category)}
+                onClick={() => handleCategoryJump(cat.id)}
                 className={`journey-categories__item ${
                   isActive ? 'journey-categories__item--active' : ''
                 }`}
@@ -1150,188 +1308,208 @@ export default function Journey() {
                   <span className="journey-categories__node-dot" />
                 </span>
                 <span className="journey-categories__text">
-                  <span className="journey-categories__name">{category}</span>
-                  {meta?.yearRange && (
-                    <span className="journey-categories__years">
-                      {meta.yearRange}
-                    </span>
-                  )}
+                  <span className="journey-categories__name">{cat.label}</span>
+                  <span className="journey-categories__years">{cat.years}</span>
                 </span>
               </button>
-            )
+            );
           })}
         </nav>
 
-        {/* Bottom-Left Year Marker ("2022 / THE BEGINNING") — Cross-fades with 500ms rise & fade */}
-        {!prefersReducedMotion && (
-          <div
-            className="journey-year-hud"
-            aria-hidden="true"
-          >
-            <div key={activeYear} className="journey-year-hud__inner">
-              <span className="journey-year-hud__year">{activeYear}</span>
-              <span className="journey-year-hud__tagline">
-                {YEAR_MARKERS[activeYear] || ''}
-              </span>
+        {/* Bottom-Left Year Marker ("2022 / THE BEGINNING") */}
+        <div className="journey-year-hud" aria-hidden="true">
+          <div key={activeYear} className="journey-year-hud__inner">
+            <div className="journey-year-hud__year">{activeYear}</div>
+            <div className="journey-year-hud__tagline">
+              {currentYearTagline}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Mobile (< 900px) Compact Horizontal Category Chip Strip */}
-        <nav
-          ref={mobileChipStripRef}
-          className="journey-mobile-chips"
-          aria-label="Journey Categories Mobile"
-        >
-          {JOURNEY_CATEGORIES.map((category) => {
-            const isActive = activeCategory === category
-            return (
-              <button
-                key={category}
-                ref={(el) => (mobileChipRefs.current[category] = el)}
-                type="button"
-                onClick={() => handleCategoryClick(category)}
-                className={`journey-mobile-chips__btn ${
-                  isActive ? 'journey-mobile-chips__btn--active' : ''
-                }`}
-                aria-current={isActive ? 'true' : undefined}
-              >
-                <span className="journey-mobile-chips__dot" aria-hidden="true" />
-                <span>{category}</span>
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Bottom-Center Mouse Scroll Cue (First Part Only) */}
+        {/* Bottom-Center Scroll Cue (Fades out after ~4% scroll) */}
         {!prefersReducedMotion && (
           <div
             ref={scrollCueWrapRef}
             className="journey-section__scroll-cue"
+            aria-hidden="true"
           >
-            <ScrollCue variant="centered" persistOnScroll={true} />
+            <ScrollCue />
           </div>
         )}
 
-        {/* Very Thin Bottom-Edge Progress Line (0..1) */}
+        {/* Mobile Category Chip Strip (< 900px) */}
+        <nav
+          className="journey-mobile-chips"
+          aria-label="Timeline categories mobile"
+        >
+          {CATEGORY_META.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => handleCategoryJump(cat.id)}
+                className={`journey-mobile-chips__btn ${
+                  isActive ? 'journey-mobile-chips__btn--active' : ''
+                }`}
+              >
+                <span className="journey-mobile-chips__dot" aria-hidden="true" />
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom-Edge Hairline Progress Bar (2px solid #E8283C) */}
         {!prefersReducedMotion && (
-          <div className="journey-section__bottom-progress" aria-hidden="true">
+          <div
+            className="journey-section__bottom-progress"
+            aria-hidden="true"
+          >
             <div
-              ref={bottomProgressRef}
+              ref={bottomProgressFillRef}
               className="journey-section__bottom-progress-fill"
             />
           </div>
         )}
       </div>
 
-      {/* 4. Ordered List (<ol>) of 14 Chronological Milestone Cards */}
-      <div className="journey-section__stage-wrap">
+      {/* =====================================================================
+          SEMANTIC ORDERED LIST (<ol>) OF TIMELINE MILESTONE CARDS
+          ===================================================================== */}
+      <div ref={stageRef} className="journey-section__stage-wrap">
         {prefersReducedMotion && (
           <svg
             className="journey-reduced-svg-line"
-            viewBox="0 0 120 1400"
+            viewBox="0 0 120 1200"
             preserveAspectRatio="none"
             aria-hidden="true"
           >
             <path
-              d="M60,0 C105,180 15,360 60,540 C105,720 15,900 60,1080 C95,1220 35,1320 60,1400"
+              d="M 60 0 C 105 200, 15 400, 60 600 C 105 800, 15 1000, 60 1200"
               fill="none"
-              stroke="rgba(232, 40, 60, 0.45)"
-              strokeWidth="1.5"
+              stroke="rgba(232, 40, 60, 0.55)"
+              strokeWidth="2"
             />
           </svg>
         )}
 
         <ol className="journey-section__stage">
-          {JOURNEY_ENTRIES.map((entry, idx) => {
-            const placement = CARD_PLACEMENTS[idx % CARD_PLACEMENTS.length]
-            const isFocused = focusedIndex === idx
-            const isNearCamera =
-              prefersReducedMotion || Math.abs(idx - nearCameraWindow) <= 3
-            const catNum = `No. ${String(idx + 1).padStart(2, '0')}`
-
-            return (
-              <li
-                key={entry.id}
-                ref={(el) => (cardRefs.current[idx] = el)}
-                className={`journey-card-item journey-card--${entry.size} ${
-                  isFocused ? 'journey-card--focused' : ''
-                }`}
+          {JOURNEY_ENTRIES.map((entry, idx) => (
+            <li
+              key={entry.id}
+              ref={(el) => {
+                cardRefs.current[idx] = el;
+              }}
+              className={`journey-card-item journey-card--major journey-card--layout-${
+                entry.layout || 'side'
+              } ${idx === 0 ? 'journey-card--focused' : ''}`}
+              style={{
+                '--card-img-aspect': entry.imageMeta
+                  ? entry.imageMeta.aspect
+                  : 1.48,
+              }}
+              data-entry-id={entry.id}
+              data-category={entry.category}
+              data-layout={entry.layout || 'side'}
+            >
+              <article
+                className="journey-card__article"
+                tabIndex={focusedIndex === idx || prefersReducedMotion ? 0 : -1}
+                onFocus={() => {
+                  if (!prefersReducedMotion) {
+                    const st = stRef.current;
+                    if (!st) return;
+                    const normP = entryIndexToScrollProgress(idx, scrollMap);
+                    const targetY =
+                      st.start + normP * Math.max(1, st.end - st.start);
+                    if (window.__lenis) {
+                      window.__lenis.scrollTo(targetY, { duration: 0.7 });
+                    } else {
+                      window.scrollTo({ top: targetY, behavior: 'smooth' });
+                    }
+                  }
+                }}
               >
-                <article
-                  tabIndex={0}
-                  onFocus={() => handleCardKeyboardFocus(idx)}
-                  className="journey-card__article"
-                  aria-label={`${entry.year} ${entry.title} (${entry.category})`}
-                >
-                  {/* Left / Top Image or Certificate Tile */}
-                  <PlaceholderArt entry={entry} isNearCamera={isNearCamera} />
+                {/* Media Column / Top Image Frame (Real WebP Photo, Framed Certificate, or Fallback SVG) */}
+                <PlaceholderArt entry={entry} />
 
-                  {/* Right / Bottom Editorial Catalogue Copy */}
-                  <div className="journey-card__body">
-                    <div
-                      className="journey-card__focus-tick"
-                      aria-hidden="true"
-                    />
-                    <div className="journey-card__meta-row">
-                      <span className="journey-card__cat-num">{catNum}</span>
-                      <span className="journey-card__year">{entry.year}</span>
-                    </div>
-                    <h3 className="journey-card__title">{entry.title}</h3>
-                    <p className="journey-card__desc">{entry.description}</p>
-                    <div className="journey-card__category-tag">
-                      <span
-                        className="journey-card__category-rule"
-                        aria-hidden="true"
-                      />
-                      <span>{entry.category}</span>
-                    </div>
+                {/* Editorial Catalogue Typography Column */}
+                <div className="journey-card__body">
+                  {/* 24px Red Accent Top Tick on Focused Card */}
+                  <div
+                    className="journey-card__focus-tick"
+                    aria-hidden="true"
+                  />
+
+                  <div className="journey-card__meta-row">
+                    <span className="journey-card__cat-num">
+                      {entry.catalogueNumber}
+                    </span>
+                    <time
+                      className="journey-card__year"
+                      dateTime={String(entry.date)}
+                    >
+                      {entry.displayDate || entry.year}
+                    </time>
                   </div>
 
-                  {/* Bottom stem attachment dot */}
-                  {!prefersReducedMotion && (
+                  <h3 className="journey-card__title">{entry.title}</h3>
+
+                  <p className="journey-card__desc">{entry.description}</p>
+
+                  <div className="journey-card__category-tag">
                     <span
-                      className="journey-card__stem-anchor"
-                      style={{ left: `${placement.anchorXRatio * 100}%` }}
+                      className="journey-card__category-rule"
                       aria-hidden="true"
                     />
-                  )}
-                </article>
-              </li>
-            )
-          })}
-        </ol>
-      </div>
+                    <span>{entry.category}</span>
+                  </div>
+                </div>
 
-      {/* 5. Closing / Outro Frame ("To be continued..." + "CONTINUE ->") */}
-      <div
-        ref={outroFrameRef}
-        className={`journey-outro ${
-          prefersReducedMotion ? 'journey-outro--static' : ''
-        }`}
-      >
-        <span className="journey-outro__eyebrow">{JOURNEY_OUTRO.eyebrow}</span>
-        <p className="journey-outro__text">{JOURNEY_OUTRO.closingLine}</p>
-        <button
-          type="button"
-          onClick={handleSkipTimeline}
-          className="journey-outro__btn"
+                {/* Solid Page-Background (--bg-dark) Depth Fog Overlay (100% Opaque Card Surface) */}
+                <div className="journey-card__fog" aria-hidden="true" />
+
+                {/* Bottom Stem Attachment Node */}
+                <span
+                  className="journey-card__stem-anchor"
+                  aria-hidden="true"
+                />
+              </article>
+            </li>
+          ))}
+        </ol>
+
+        {/* Closing / Outro Frame ("To be continued..." + "CONTINUE ->") */}
+        <div
+          ref={outroRef}
+          className={`journey-outro ${
+            prefersReducedMotion ? 'journey-outro--static' : ''
+          }`}
         >
-          <span>{JOURNEY_OUTRO.ctaLabel}</span>
-          <span className="journey-outro__arrow" aria-hidden="true">
-            →
+          <span className="journey-outro__eyebrow">
+            {JOURNEY_OUTRO.eyebrow}
           </span>
-        </button>
+          <p className="journey-outro__text">{JOURNEY_OUTRO.line}</p>
+          <button
+            type="button"
+            onClick={handleSkipTimeline}
+            className="journey-outro__btn"
+          >
+            <span>{JOURNEY_OUTRO.ctaLabel}</span>
+            <span className="journey-outro__arrow" aria-hidden="true">
+              →
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Soft Dark Exit Crossfade Curtain */}
-      {!prefersReducedMotion && (
-        <div
-          ref={exitCurtainRef}
-          className="journey-section__exit-curtain"
-          aria-hidden="true"
-        />
-      )}
+      <div
+        ref={exitCurtainRef}
+        className="journey-section__exit-curtain"
+        aria-hidden="true"
+      />
     </section>
-  )
+  );
 }

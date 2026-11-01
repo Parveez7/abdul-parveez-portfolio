@@ -1,6 +1,6 @@
 /* =========================================================================
-   THE JOURNEY — Section 04 Styles (7A Engine + 7B Interface Layer)
-   Matte, Editorial, Museum-Catalogue 3D Timeline (Zero Glassmorphism)
+   THE JOURNEY — Section 05 Styles (7A Engine + 7B Interface Layer)
+   Matte, Editorial, Museum-Catalogue 3D Timeline (100% Opaque Cards)
    ========================================================================= */
 
 .journey-section {
@@ -458,28 +458,45 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  perspective: 1100px;
-  transform-style: preserve-3d;
   pointer-events: none;
 }
 
 /* -------------------------------------------------------------------------
    Matte Museum-Label / Auction-Catalogue Card
-   NO glassmorphism, NO backdrop-filter, SOLID #141416 surface
-   Cards are hidden by default in CSS until JavaScript places them in 3D space.
+   100% OPAQUE surface: NO rgba backgrounds, NO translucent layers,
+   NO backdrop-filter, NO mix-blend-mode.
    ------------------------------------------------------------------------- */
 .journey-card-item {
   position: absolute;
   top: 0;
   left: 0;
   display: none;
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
   list-style: none;
   margin: 0;
   padding: 0;
   transform-origin: 50% 100%;
   will-change: transform, opacity, filter;
+  isolation: isolate;
+  --card-fog-alpha: 0;
+}
+
+/* Layout "side" (aspect <= 1.15, portrait or square):
+   Image tile on left (~40% of card), text on right. Card ~600 x 340 at focus. */
+.journey-card--layout-side {
+  width: clamp(500px, 41vw, 600px);
+  height: clamp(290px, 38vh, 340px);
+  max-height: 62vh;
+}
+
+/* Layout "top" (aspect > 1.15, landscape):
+   Image spans full card width on top at its own aspect (up to ~55% of card),
+   text underneath. Card ~480-520px wide and up to ~460px tall at focus. */
+.journey-card--layout-top {
+  width: clamp(460px, 36vw, 510px);
+  height: auto;
+  max-height: min(455px, 62vh);
 }
 
 .journey-card__article {
@@ -489,87 +506,114 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: clamp(14px, 1.4vw, 22px);
-  padding: clamp(12px, 1.15vw, 18px);
-  background-color: #141416;
-  border: 1px solid rgba(245, 242, 238, 0.10);
+  gap: clamp(14px, 1.35vw, 20px);
+  padding: clamp(12px, 1.15vw, 16px);
+  background-color: #151518;
+  border: 1px solid #2A292E;
   border-radius: 11px;
   box-sizing: border-box;
   color: var(--text-light, #F5F2EE);
   box-shadow:
-    0 40px 80px rgba(0, 0, 0, 0.62),
-    0 2px 6px rgba(0, 0, 0, 0.45);
+    0 40px 80px rgba(0, 0, 0, 0.72),
+    0 4px 12px rgba(0, 0, 0, 0.55);
 }
 
-/* Static subtle film grain inside the card surface (4-5% opacity) */
-.journey-card__article::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='cardGrain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23cardGrain)'/%3E%3C/svg%3E");
+.journey-card--layout-top .journey-card__article {
+  flex-direction: column;
+  gap: clamp(11px, 1.3vh, 15px);
 }
 
-/* Major vs Minor Card Dimensions at Focus (1.0 scale) */
-.journey-card--major {
-  width: clamp(440px, 37vw, 550px);
-  height: clamp(235px, 19.5vw, 290px);
-}
-
-.journey-card--minor {
-  width: clamp(340px, 28vw, 412px);
-  height: clamp(180px, 14.5vw, 215px);
-}
-
-/* Focused state: slightly crisper border & deeper shadow */
+/* Focused state: crisper solid border & deeper shadow */
 .journey-card--focused .journey-card__article {
-  border-color: rgba(245, 242, 238, 0.19);
+  border-color: #3E3C42;
   box-shadow:
-    0 48px 96px rgba(0, 0, 0, 0.78),
-    0 6px 16px rgba(0, 0, 0, 0.55);
+    0 48px 96px rgba(0, 0, 0, 0.82),
+    0 8px 20px rgba(0, 0, 0, 0.62);
+}
+
+/* Solid Depth "Fog" Overlay inside card (--bg-dark #0E0E10)
+   Darkens far/receding cards into the background while keeping the card 100% opaque */
+.journey-card__fog {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background-color: var(--bg-dark, #0E0E10);
+  opacity: var(--card-fog-alpha, 0);
+  pointer-events: none;
+  z-index: 5;
+  will-change: opacity;
 }
 
 /* Small attachment node at bottom edge of card where stem connects */
 .journey-card__stem-anchor {
   position: absolute;
   bottom: -3.5px;
+  left: 50%;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background-color: var(--accent, #E8283C);
   transform: translateX(-50%);
   pointer-events: none;
+  z-index: 6;
 }
 
 /* -------------------------------------------------------------------------
-   Left Column of Card: Media Tile (~38% width, 6px radius)
+   Media Tile (Photos & Mounted Certificates — 100% Solid Surfaces)
    ------------------------------------------------------------------------- */
 .journey-card__media {
   position: relative;
-  flex: 0 0 38%;
-  width: 38%;
-  height: 100%;
   border-radius: 6px;
   overflow: hidden;
   background-color: #1B1A19;
-  border: 1px solid rgba(245, 242, 238, 0.08);
+  border: 1px solid #29282C;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
+/* Side layout media tile: left ~40% of card */
+.journey-card--layout-side .journey-card__media {
+  flex: 0 0 40%;
+  width: 40%;
+  height: 100%;
+}
+
+/* Top layout media tile: full card width on top, reserved aspect from journey-images.json,
+   limited to ~55% of card height so it fits comfortably on 1366x768 */
+.journey-card--layout-top .journey-card__media {
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: var(--card-img-aspect, 1.48);
+  max-height: min(230px, 31vh);
+}
+
+/* Certificates: soft ivory mat (#EDE8DF) with 10-14px padding and thin inner hairline */
 .journey-card__media--certificate-mat {
-  background-color: #191817;
-  padding: 10px;
+  background-color: #EDE8DF;
+  border-color: #D5CEC2;
+  padding: clamp(10px, 0.85vw, 13px);
+}
+
+.journey-card__cert-frame {
+  width: 100%;
+  height: 100%;
+  background-color: #EDE8DF;
+  border: 1px solid #C5BDB0;
+  border-radius: 2px;
+  padding: 4px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .journey-card__img {
   width: 100%;
   height: 100%;
   display: block;
-  filter: saturate(0.82) contrast(1.03);
 }
 
 .journey-card__img--photo {
@@ -578,27 +622,6 @@
 
 .journey-card__img--certificate {
   object-fit: contain;
-  transform: rotate(-1deg);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-
-.journey-cert-doc {
-  width: 82%;
-  height: 92%;
-  background-color: #EDE8DF;
-  border-radius: 2px;
-  transform: rotate(-1deg);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.journey-cert-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
 }
 
 .journey-placeholder-svg {
@@ -608,31 +631,8 @@
   object-fit: cover;
 }
 
-.journey-card__media-vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.48);
-}
-
-.journey-card__dev-badge {
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background-color: rgba(14, 14, 16, 0.82);
-  border: 1px solid rgba(245, 242, 238, 0.14);
-  font-family: var(--font-sans);
-  font-size: 7.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: rgba(245, 242, 238, 0.65);
-  pointer-events: none;
-}
-
 /* -------------------------------------------------------------------------
-   Right Column of Card: Editorial Catalogue Typography
+   Editorial Catalogue Typography (100% Opaque Solid Colors)
    ------------------------------------------------------------------------- */
 .journey-card__body {
   position: relative;
@@ -646,11 +646,15 @@
   padding: 2px 4px 2px 0;
 }
 
+.journey-card--layout-top .journey-card__body {
+  padding: 0 2px 2px;
+}
+
 .journey-card__focus-tick {
   width: 24px;
   height: 2px;
   background-color: var(--accent, #E8283C);
-  margin-bottom: 7px;
+  margin-bottom: 6px;
   transform-origin: left center;
   transform: scaleX(0);
   transition: transform 0.35s var(--ease-out);
@@ -673,12 +677,12 @@
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(245, 242, 238, 0.42);
+  color: #8E8A84;
 }
 
 .journey-card__year {
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -686,42 +690,31 @@
 }
 
 .journey-card__title {
-  margin: 0 0 7px;
+  margin: 0 0 6px;
   font-family: var(--font-serif-italic);
   font-style: normal;
   font-weight: 400;
+  font-size: clamp(19px, 1.55vw, 24px);
   color: var(--text-light, #F5F2EE);
   line-height: 1.14;
   letter-spacing: -0.01em;
-}
-
-.journey-card--major .journey-card__title {
-  font-size: clamp(20px, 1.8vw, 27px);
-}
-
-.journey-card--minor .journey-card__title {
-  font-size: clamp(16.5px, 1.4vw, 21.5px);
-}
-
-.journey-card__desc {
-  margin: 0 0 10px;
-  font-family: var(--font-sans);
-  font-weight: 400;
-  color: rgba(245, 242, 238, 0.64);
-  line-height: 1.48;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.journey-card--major .journey-card__desc {
-  font-size: clamp(12.5px, 0.92vw, 14px);
-}
-
-.journey-card--minor .journey-card__desc {
-  font-size: clamp(11.5px, 0.84vw, 13px);
-  -webkit-line-clamp: 2;
+.journey-card__desc {
+  margin: 0 0 10px;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: clamp(12.25px, 0.88vw, 13.5px);
+  color: #B4B0AA;
+  line-height: 1.46;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .journey-card__category-tag {
@@ -734,14 +727,14 @@
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(245, 242, 238, 0.45);
+  color: #8A8680;
 }
 
 .journey-card__category-rule {
   display: inline-block;
   width: 18px;
   height: 1px;
-  background-color: rgba(245, 242, 238, 0.22);
+  background-color: #3A383E;
 }
 
 /* -------------------------------------------------------------------------
@@ -863,39 +856,40 @@
   }
 
   /* Vertical card layout on mobile (~86vw width, image on top, text below) */
-  .journey-card--major,
-  .journey-card--minor {
-    width: min(86vw, 350px);
+  .journey-card--layout-side,
+  .journey-card--layout-top {
+    width: min(86vw, 355px);
     height: auto;
     min-height: 295px;
-    max-height: 345px;
+    max-height: 58vh;
   }
 
-  .journey-card__article {
+  .journey-card--layout-side .journey-card__article,
+  .journey-card--layout-top .journey-card__article {
     flex-direction: column;
-    gap: 12px;
+    gap: 11px;
     padding: 12px;
   }
 
-  .journey-card__media {
-    flex: 0 0 135px;
+  .journey-card--layout-side .journey-card__media,
+  .journey-card--layout-top .journey-card__media {
+    flex: 0 0 145px;
     width: 100%;
-    height: 135px;
+    height: 145px;
+    max-height: 145px;
   }
 
   .journey-card__body {
     padding: 0;
   }
 
-  .journey-card--major .journey-card__title,
-  .journey-card--minor .journey-card__title {
+  .journey-card__title {
     font-size: 18px;
   }
 
-  .journey-card--major .journey-card__desc,
-  .journey-card--minor .journey-card__desc {
+  .journey-card__desc {
     font-size: 12px;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
   }
 
   /* Year readout above mobile chip strip */
@@ -946,8 +940,8 @@
     padding: 6px 12px;
     border-radius: 999px;
     background-color: #141416;
-    border: 1px solid rgba(245, 242, 238, 0.14);
-    color: rgba(245, 242, 238, 0.68);
+    border: 1px solid #2A292E;
+    color: #B4B0AA;
     font-family: var(--font-sans);
     font-size: 10px;
     font-weight: 500;
@@ -961,7 +955,7 @@
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background-color: rgba(245, 242, 238, 0.28);
+    background-color: #555258;
   }
 
   .journey-mobile-chips__btn--active {
@@ -1032,7 +1026,7 @@
 .journey-section--reduced-motion .journey-categories__item {
   padding: 6px 12px;
   background-color: #141416;
-  border: 1px solid rgba(245, 242, 238, 0.14);
+  border: 1px solid #2A292E;
   border-radius: 999px;
 }
 

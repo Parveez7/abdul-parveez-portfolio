@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { SITE } from '../../config/site'
 import { useSmoothScroll } from '../../context/SmoothScrollContext'
+import { useNavigation } from '../../context/NavigationContext'
 import './Navbar.css'
 
 export default function Navbar() {
@@ -16,14 +17,19 @@ export default function Navbar() {
   const isHero = activeSection === 'hero' && !isScrolled
   const isConnectActive = activeSection === 'contact'
 
+  const { currentPath, navigate } = useNavigation()
+
   // Handle clicking nav item
   const handleNavClick = (e, href) => {
     e.preventDefault()
     setMobileMenuOpen(false)
 
     // Support detail page routing if current path is not root
-    if (typeof window !== 'undefined' && window.location.pathname !== '/' && window.location.pathname !== '') {
-      window.location.href = `/${href}`
+    if (currentPath !== '/' && currentPath !== '') {
+      navigate('/' + href)
+      setTimeout(() => {
+        scrollTo(href, { offset: 0 })
+      }, 150)
       return
     }
 

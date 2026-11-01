@@ -76,12 +76,13 @@ export function SmoothScrollProvider({ children }) {
       if (stById && typeof stById.start === 'number') {
         targetScrollPos = stById.start
       } else {
-        // 2. Query element and look for associated ScrollTrigger (prefer pinned trigger)
+        // 2. Query element and look for associated ScrollTrigger (prefer pinned or top-top trigger)
         const el = document.getElementById(targetId)
         if (el) {
           const triggers = ScrollTrigger.getAll()
           const matchedSt =
             triggers.find((st) => (st.pin === el || st.trigger === el) && st.pin) ||
+            triggers.find((st) => st.trigger === el && st.vars?.start === 'top top') ||
             triggers.find((st) => st.trigger === el || st.pin === el)
           if (matchedSt && typeof matchedSt.start === 'number') {
             targetScrollPos = matchedSt.start
@@ -143,6 +144,7 @@ export function SmoothScrollProvider({ children }) {
         touchMultiplier: 1.0,
       })
       lenisRef.current = lenisInstance
+      window.__lenis = lenisInstance
 
       const handleLenisScroll = (e) => {
         ScrollTrigger.update()
@@ -211,6 +213,9 @@ export function SmoothScrollProvider({ children }) {
         gsap.ticker.remove(tickerHandler)
       }
       if (lenisInstance) {
+        if (window.__lenis === lenisInstance) {
+          delete window.__lenis
+        }
         lenisInstance.destroy()
         lenisRef.current = null
       }

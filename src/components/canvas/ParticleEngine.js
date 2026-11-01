@@ -285,9 +285,16 @@ export class ParticleEngine {
         this._applyTargetsImmediate('hero')
         this._renderStaticFrame()
       } else if (this.heroEntranceQueued || this.heroEntrancePlayed) {
-        this.playHeroEntrance()
+        this.playHeroEntrance(this.heroEntranceOpts)
       } else {
-        this._prepareScatteredHeroStart()
+        const alreadyLoaded =
+          typeof window !== 'undefined' &&
+          sessionStorage.getItem('portfolio_initial_loaded') === 'true'
+        if (alreadyLoaded) {
+          this.playHeroEntrance({ duration: 2.2 })
+        } else {
+          this._prepareScatteredHeroStart()
+        }
       }
 
       const poseNames = ['pose1', 'pose2', 'pose3']
@@ -407,6 +414,9 @@ export class ParticleEngine {
   playHeroEntrance(opts = {}) {
     if (this.isDestroyed) return
     this.heroEntranceQueued = true
+    if (opts && Object.keys(opts).length > 0) {
+      this.heroEntranceOpts = opts
+    }
 
     const targets = this._buildSceneTargetsSync('hero')
     if (!targets) return
@@ -790,60 +800,33 @@ export class ParticleEngine {
 
       const isHeroMode = this.currentScene === 'hero' && this.theme <= 0.2
 
-      if (isHeroMode) {
-        // Hero mode: Critically damped exponential ease-out (no spring overshoot / wobble)
-        const followSpeed = 0.14
-        let moveX = dx * followSpeed
-        let moveY = dy * followSpeed
+      // Critically damped exponential ease-out across all scenes (Hero & About poses):
+      // No spring overshoot, wobble, or elastic bounce in either scroll direction.
+      const followSpeed = isHeroMode ? 0.14 : 0.155
+      let moveX = dx * followSpeed
+      let moveY = dy * followSpeed
 
-        if (hasPointer && effectiveTargetAlpha > 0.05) {
-          const cdx = x[i] - px
-          if (cdx > -cursorRadius && cdx < cursorRadius) {
-            const cdy = y[i] - py
-            if (cdy > -cursorRadius && cdy < cursorRadius) {
-              const distSq = cdx * cdx + cdy * cdy
-              if (distSq < cursorRadiusSq && distSq > 0.01) {
-                const dist = Math.sqrt(distSq)
-                const falloff = 1 - dist / cursorRadius
-                const force = falloff * falloff * repelStrength * 1.35
-                moveX += (cdx / dist) * force
-                moveY += (cdy / dist) * force
-              }
+      if (hasPointer && effectiveTargetAlpha > 0.05) {
+        const cdx = x[i] - px
+        if (cdx > -cursorRadius && cdx < cursorRadius) {
+          const cdy = y[i] - py
+          if (cdy > -cursorRadius && cdy < cursorRadius) {
+            const distSq = cdx * cdx + cdy * cdy
+            if (distSq < cursorRadiusSq && distSq > 0.01) {
+              const dist = Math.sqrt(distSq)
+              const falloff = 1 - dist / cursorRadius
+              const force = falloff * falloff * repelStrength * (isHeroMode ? 1.35 : 1.2)
+              moveX += (cdx / dist) * force
+              moveY += (cdy / dist) * force
             }
           }
         }
-
-        x[i] += moveX
-        y[i] += moveY
-        vx[i] = 0
-        vy[i] = 0
-      } else {
-        // About poses: Preserved spring & shimmer cloud dissolve physics
-        let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
-        let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
-
-        if (hasPointer && effectiveTargetAlpha > 0.05) {
-          const cdx = x[i] - px
-          if (cdx > -cursorRadius && cdx < cursorRadius) {
-            const cdy = y[i] - py
-            if (cdy > -cursorRadius && cdy < cursorRadius) {
-              const distSq = cdx * cdx + cdy * cdy
-              if (distSq < cursorRadiusSq && distSq > 0.01) {
-                const dist = Math.sqrt(distSq)
-                const falloff = 1 - dist / cursorRadius
-                const force = falloff * falloff * repelStrength
-                nvx += (cdx / dist) * force
-                nvy += (cdy / dist) * force
-              }
-            }
-          }
-        }
-
-        vx[i] = nvx
-        vy[i] = nvy
-        x[i] += nvx
-        y[i] += nvy
       }
+
+      x[i] += moveX
+      y[i] += moveY
+      vx[i] = 0
+      vy[i] = 0
 
       alpha[i] += (effectiveTargetAlpha - alpha[i]) * 0.085
     }

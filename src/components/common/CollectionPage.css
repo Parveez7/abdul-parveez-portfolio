@@ -1,0 +1,332 @@
+/* =========================================================================
+   COLLECTION PAGE — Shared Editorial Detail Page Layout (/projects, /experience, /exchange)
+   Reuses Featured Work ambient orbs, grain, typography tokens & surface styles
+   ========================================================================= */
+
+.collection-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  background-color: var(--bg-dark, #0E0E10);
+  color: var(--text-light, #F5F2EE);
+  padding-top: calc(var(--nav-height, 80px) + 1.5rem);
+  padding-bottom: 5rem;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* -------------------------------------------------------------------------
+   1. Fixed Top Red Scroll-Progress Hairline (2px #E8283C)
+   ------------------------------------------------------------------------- */
+.collection-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: rgba(245, 242, 238, 0.08);
+  pointer-events: none;
+  z-index: 100;
+}
+
+.collection-progress__fill {
+  width: 100%;
+  height: 100%;
+  background-color: var(--accent, #E8283C);
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+/* -------------------------------------------------------------------------
+   2. Ambient Drifting Orbs & Film Grain (Matching Featured Work)
+   ------------------------------------------------------------------------- */
+.collection-ambient {
+  position: fixed !important;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* -------------------------------------------------------------------------
+   3. Main Container
+   ------------------------------------------------------------------------- */
+.collection-page__container {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 clamp(1.5rem, 4vw, 3.5rem);
+  box-sizing: border-box;
+}
+
+/* Top Bar: Back to Featured Work Button */
+.collection-page__top-nav {
+  display: flex;
+  align-items: center;
+  margin-bottom: clamp(2rem, 3.5vh, 3.25rem);
+}
+
+.collection-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(245, 242, 238, 0.16);
+  color: var(--text-light, #F5F2EE);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 0.25s var(--ease-out),
+    background-color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.collection-back-btn:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(245, 242, 238, 0.45);
+  transform: translateX(-3px);
+}
+
+.collection-back-arrow {
+  display: inline-block;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.collection-back-btn:hover .collection-back-arrow {
+  transform: translateX(-2px);
+}
+
+/* -------------------------------------------------------------------------
+   4. Page Header
+   ------------------------------------------------------------------------- */
+.collection-header {
+  margin-bottom: clamp(3rem, 5vh, 4.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.collection-header__eyebrow-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0.85rem;
+}
+
+.collection-header__index {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--accent, #E8283C);
+}
+
+.collection-header__eyebrow-sep {
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  background-color: rgba(245, 242, 238, 0.26);
+}
+
+.collection-header__eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted-on-dark, rgba(245, 242, 238, 0.6));
+}
+
+.collection-header__title {
+  margin: 0 0 1rem;
+  line-height: 0.95;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25em;
+}
+
+.collection-header__title-lead {
+  font-family: var(--font-condensed, 'Anton', sans-serif);
+  font-weight: 900;
+  font-size: clamp(2.8rem, 5.2vw, 5.2rem);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: var(--text-light, #F5F2EE);
+}
+
+.collection-header__title-accent {
+  font-family: var(--font-serif-italic, 'Instrument Serif', serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(3.2rem, 6vw, 6rem);
+  letter-spacing: -0.01em;
+  color: var(--text-light, #F5F2EE);
+}
+
+.collection-header__subtitle {
+  margin: 0;
+  max-width: 48ch;
+  font-family: var(--font-sans);
+  font-size: clamp(13.5px, 1.05vw, 16px);
+  line-height: 1.55;
+  color: var(--muted-on-dark, rgba(245, 242, 238, 0.62));
+}
+
+/* -------------------------------------------------------------------------
+   5. Content Wrapper
+   ------------------------------------------------------------------------- */
+.collection-content {
+  width: 100%;
+  position: relative;
+}
+
+/* -------------------------------------------------------------------------
+   6. Footer Navigation Block
+   ------------------------------------------------------------------------- */
+.collection-footer {
+  margin-top: clamp(4.5rem, 8vh, 7rem);
+  padding-top: 2rem;
+  border-top: 1px solid rgba(245, 242, 238, 0.12);
+}
+
+.collection-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.collection-footer__back,
+.collection-footer__next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background-color: transparent;
+  border: 1px solid rgba(245, 242, 238, 0.18);
+  color: var(--text-light, #F5F2EE);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    border-color 0.25s var(--ease-out),
+    background-color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.collection-footer__back:hover,
+.collection-footer__next:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(245, 242, 238, 0.55);
+}
+
+.collection-footer__back:hover {
+  transform: translateX(-3px);
+}
+
+.collection-footer__next:hover {
+  transform: translateX(3px);
+}
+
+.collection-footer__arrow {
+  display: inline-block;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.collection-footer__back:hover .collection-footer__arrow {
+  transform: translateX(-3px);
+}
+
+.collection-footer__next:hover .collection-footer__arrow {
+  transform: translateX(3px);
+}
+
+/* Focus states */
+.collection-back-btn:focus-visible,
+.collection-footer__back:focus-visible,
+.collection-footer__next:focus-visible {
+  outline: 2px solid var(--accent, #E8283C);
+  outline-offset: 4px;
+}
+
+
+/* -------------------------------------------------------------------------
+   Mobile Responsive Breakpoint (<= 640px)
+   ------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .collection-page {
+    padding-top: calc(var(--nav-height, 70px) + 1rem);
+    padding-bottom: 3.5rem;
+  }
+
+  .collection-page__container {
+    padding: 0 1.15rem;
+  }
+
+  .collection-page__top-nav {
+    margin-bottom: 1.5rem;
+  }
+
+  .collection-back-btn {
+    padding: 8px 14px;
+    font-size: 10.5px;
+  }
+
+  .collection-header {
+    margin-bottom: 2rem;
+  }
+
+  .collection-header__eyebrow-wrap {
+    gap: 8px;
+    margin-bottom: 0.65rem;
+  }
+
+  .collection-header__title-lead {
+    font-size: clamp(2.1rem, 9.2vw, 3.2rem);
+  }
+
+  .collection-header__title-accent {
+    font-size: clamp(2.4rem, 10.5vw, 3.8rem);
+  }
+
+  .collection-header__subtitle {
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .collection-footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+  }
+
+  .collection-footer__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .collection-footer__back,
+  .collection-footer__next {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 18px;
+    box-sizing: border-box;
+    font-size: 10.5px;
+  }
+}

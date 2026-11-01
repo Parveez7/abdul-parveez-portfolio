@@ -102,13 +102,14 @@
   letter-spacing: -0.01em;
 }
 
-/* Connecting words: Grotesk UI font, upright (not italic), weight 350, optical scaling ~0.85x to match x-height */
+/* Connecting words: Grotesk UI font, bold weight 650, optical scaling ~0.82x to balance x-height & serif width */
 .about-word--grotesk {
   font-family: var(--font-ui, var(--font-sans));
   font-style: normal;
-  font-weight: 350;
-  font-size: calc(clamp(26px, 3.2vw, 52px) * 0.85);
-  letter-spacing: -0.012em;
+  font-weight: 650;
+  font-size: calc(clamp(26px, 3.2vw, 52px) * 0.82);
+  letter-spacing: -0.01em;
+  word-spacing: -0.02em;
 }
 
 /* -------------------------------------------------------------------------

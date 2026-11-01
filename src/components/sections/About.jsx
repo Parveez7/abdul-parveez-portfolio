@@ -17,7 +17,7 @@ import './About.css'
  */
 function computeWordColor(fill, isEmphasis = false) {
   if (fill <= 0.001) return '#CFCFCB'
-  if (fill >= 0.999) return isEmphasis ? '#121212' : '#5B5B57'
+  if (fill >= 0.999) return isEmphasis ? '#121212' : '#4E4E4A'
 
   // Stage 1: Unread Grey -> Vibrant Red Cursor (0.0 -> 0.45)
   if (fill < 0.45) {
@@ -35,9 +35,9 @@ function computeWordColor(fill, isEmphasis = false) {
 
   // Stage 2: Vibrant Red -> Settled Ink / Softer Ink (0.55 -> 1.0)
   const t = (fill - 0.55) / 0.45
-  const endR = isEmphasis ? 18 : 91
-  const endG = isEmphasis ? 18 : 91
-  const endB = isEmphasis ? 18 : 87
+  const endR = isEmphasis ? 18 : 78
+  const endG = isEmphasis ? 18 : 78
+  const endB = isEmphasis ? 18 : 74
 
   const r = Math.round(232 + (endR - 232) * t)
   const g = Math.round(40 + (endG - 40) * t)

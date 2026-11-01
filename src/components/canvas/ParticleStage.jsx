@@ -32,6 +32,7 @@ function applyContinuousThemeVars(t) {
 export function ParticleStageProvider({ children }) {
   const canvasRef = useRef(null)
   const engineRef = useRef(null)
+  const pendingEntranceRef = useRef(null)
   const [telemetry, setTelemetry] = useState({
     fps: 60,
     frameMs: '8.0',
@@ -48,7 +49,11 @@ export function ParticleStageProvider({ children }) {
   const stageApi = useMemo(
     () => ({
       playHeroEntrance: (opts) => {
-        engineRef.current?.playHeroEntrance(opts)
+        if (engineRef.current) {
+          engineRef.current.playHeroEntrance(opts)
+        } else {
+          pendingEntranceRef.current = opts || {}
+        }
       },
       setScene: (name, opts) => {
         engineRef.current?.setScene(name, opts)
@@ -86,6 +91,11 @@ export function ParticleStageProvider({ children }) {
       },
     })
     engineRef.current = engine
+
+    if (pendingEntranceRef.current) {
+      engine.playHeroEntrance(pendingEntranceRef.current)
+      pendingEntranceRef.current = null
+    }
 
     applyContinuousThemeVars(0)
     window.__particleStage = stageApi

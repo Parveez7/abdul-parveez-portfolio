@@ -1,0 +1,161 @@
+/* =========================================================================
+   EXCHANGE PAGE STYLING
+   ========================================================================= */
+
+.exchange-showcase {
+  width: 100%;
+}
+
+.exchange-panel {
+  background-color: #151518;
+  border: 1px solid rgba(245, 242, 238, 0.12);
+  border-radius: 20px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.72),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.exchange-panel__media {
+  position: relative;
+  min-height: 440px;
+  overflow: hidden;
+  background-color: #1A1A1E;
+}
+
+.exchange-panel__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% 36%;
+  display: block;
+}
+
+.exchange-panel__media-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 60%,
+    #151518 100%
+  );
+  pointer-events: none;
+}
+
+.exchange-panel__content {
+  padding: clamp(2rem, 3.5vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.exchange-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--accent, #E8283C);
+  margin-bottom: 0.75rem;
+}
+
+.exchange-panel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+}
+
+.exchange-panel__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-condensed, 'Anton', sans-serif);
+  font-weight: 900;
+  font-size: clamp(2rem, 3.2vw, 3.2rem);
+  text-transform: uppercase;
+  color: var(--text-light, #F5F2EE);
+  line-height: 1.05;
+}
+
+.exchange-panel__role {
+  margin: 0 0 1.25rem;
+  font-family: var(--font-serif-italic, 'Instrument Serif', serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.3rem, 1.8vw, 1.8rem);
+  color: rgba(245, 242, 238, 0.85);
+}
+
+.exchange-panel__desc {
+  margin: 0 0 2rem;
+  max-width: 50ch;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 0.95vw, 15px);
+  line-height: 1.6;
+  color: rgba(245, 242, 238, 0.7);
+}
+
+.exchange-panel__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(245, 242, 238, 0.1);
+}
+
+.exchange-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.exchange-meta-item__label {
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(245, 242, 238, 0.45);
+}
+
+.exchange-meta-item__val {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light, #F5F2EE);
+}
+
+.exchange-panel__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 899px) {
+  .exchange-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .exchange-panel__media {
+    min-height: 260px;
+  }
+
+  .exchange-panel__media-overlay {
+    background: linear-gradient(
+      0deg,
+      #151518 0%,
+      transparent 50%
+    );
+  }
+
+  .exchange-panel__meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

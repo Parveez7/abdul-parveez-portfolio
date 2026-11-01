@@ -9,16 +9,16 @@ export const SITE = {
   tagline: 'AI Developer · Data Enthusiast · Builder',
   heroTagline: 'Developer - Data Intelligence',
   domain: 'abdulparveez.com',
-  email: 'contact@abdulparvez.in',
+  email: 'abdulparveezya@gmail.com',
   calendarUrl: 'https://cal.com',
 
-  // Top navigation links (matches design: Home, About, Skills, Work, Journey + Connect CTA)
+  // Top navigation links (matches design: Home, About, Skills, Work, Acheivements + Connect CTA)
   nav: [
     { id: 'hero', label: 'Home', href: '#hero' },
     { id: 'about', label: 'About', href: '#about' },
     { id: 'skills', label: 'Skills', href: '#skills' },
     { id: 'projects', label: 'Work', href: '#projects' },
-    { id: 'experience', label: 'Journey', href: '#experience' },
+    { id: 'experience', label: 'Acheivements', href: '#experience' },
   ],
 
   // Header Call To Action button
@@ -40,8 +40,8 @@ export const SITE = {
 
   // Social / external profiles
   socials: [
-    { label: 'GitHub', href: 'https://github.com' },
-    { label: 'LinkedIn', href: 'https://linkedin.com' },
-    { label: 'Email', href: 'mailto:contact@abdulparvez.in' },
+    { label: 'GitHub', href: 'https://github.com/Parveez7' },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/abdul-parveez/' },
+    { label: 'Email', href: 'mailto:abdulparveezya@gmail.com' },
   ],
 }

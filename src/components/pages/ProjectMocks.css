@@ -1,0 +1,633 @@
+/* =========================================================================
+   PROJECT MOCKS STYLING — Phone Frame & Window Frame CSS Mocks
+   ========================================================================= */
+
+.mock-caption {
+  margin: 10px 0 0;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-on-dark, rgba(245, 242, 238, 0.45));
+}
+
+/* -------------------------------------------------------------------------
+   1. DIET COACH: Phone Frame Mock
+   ------------------------------------------------------------------------- */
+.diet-mock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.diet-mock__phone-frame {
+  position: relative;
+  width: min(100%, 280px);
+  height: 480px;
+  background-color: #121214;
+  border: 1.5px solid rgba(245, 242, 238, 0.22);
+  border-radius: 36px;
+  padding: 10px;
+  box-sizing: border-box;
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  user-select: none;
+}
+
+.diet-mock__notch {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 18px;
+  background-color: #0E0E10;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.diet-mock__speaker {
+  width: 32px;
+  height: 3px;
+  background-color: rgba(245, 242, 238, 0.2);
+  border-radius: 2px;
+}
+
+.diet-mock__lens {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #1A191D;
+  border: 1px solid rgba(245, 242, 238, 0.15);
+}
+
+.diet-mock__screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 38%, #1A1A1E 0%, #101012 100%);
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.diet-mock__top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px 14px 6px;
+  z-index: 5;
+}
+
+.diet-mock__live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-light, #F5F2EE);
+}
+
+.diet-mock__live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.diet-mock__lens-mode {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(245, 242, 238, 0.45);
+}
+
+.diet-mock__reticle {
+  position: relative;
+  flex: 1 1 auto;
+  margin: 10px 16px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.diet-mock__bracket {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(245, 242, 238, 0.65);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.diet-mock__bracket--tl {
+  top: 6px;
+  left: 6px;
+  border-width: 1.5px 0 0 1.5px;
+}
+
+.diet-mock__bracket--tr {
+  top: 6px;
+  right: 6px;
+  border-width: 1.5px 1.5px 0 0;
+}
+
+.diet-mock__bracket--bl {
+  bottom: 6px;
+  left: 6px;
+  border-width: 0 0 1.5px 1.5px;
+}
+
+.diet-mock__bracket--br {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+.diet-mock__plate-wrap {
+  width: 150px;
+  height: 150px;
+}
+
+.diet-mock__plate-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.diet-mock__scan-line {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent, #E8283C), transparent);
+  box-shadow: 0 0 12px var(--accent, #E8283C);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.diet-mock__scan-line--active {
+  opacity: 1;
+  animation: scanSweep 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes scanSweep {
+  0% {
+    top: 6px;
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: calc(100% - 6px);
+    opacity: 0.1;
+  }
+}
+
+/* Sliding Result Bottom Sheet */
+.diet-mock__sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #161519;
+  border-top: 1px solid rgba(245, 242, 238, 0.14);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 14px 16px;
+  transform: translateY(105%);
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 8;
+}
+
+.diet-mock__sheet--visible {
+  transform: translateY(0);
+}
+
+.diet-mock__sheet-handle {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background-color: rgba(245, 242, 238, 0.25);
+  margin: 0 auto 10px;
+}
+
+.diet-mock__sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.diet-mock__kcal-label {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(245, 242, 238, 0.45);
+}
+
+.diet-mock__kcal-num {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-light, #F5F2EE);
+  line-height: 1.1;
+}
+
+.diet-mock__kcal-unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent, #E8283C);
+}
+
+.diet-mock__macro-ring {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diet-mock__ring-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.diet-mock__ring-text {
+  position: absolute;
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-light, #F5F2EE);
+}
+
+.diet-mock__suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diet-mock__sugg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(245, 242, 238, 0.08);
+  opacity: 0.4;
+  transform: translateY(4px);
+  transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+}
+
+.diet-mock__sugg-row--in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.diet-mock__sugg-badge {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diet-mock__sugg-row--add .diet-mock__sugg-badge {
+  color: #4ADE80;
+}
+
+.diet-mock__sugg-row--reduce .diet-mock__sugg-badge {
+  color: #FB923C;
+}
+
+.diet-mock__sugg-text {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  color: rgba(245, 242, 238, 0.85);
+  line-height: 1.2;
+}
+
+/* -------------------------------------------------------------------------
+   2. EMOTION SCANNER: Window Mock
+   ------------------------------------------------------------------------- */
+.emotion-mock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.emotion-mock__window {
+  width: min(100%, 440px);
+  background-color: #141416;
+  border: 1.5px solid rgba(245, 242, 238, 0.18);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.45s ease, box-shadow 0.45s ease;
+  user-select: none;
+}
+
+.emotion-mock__window--warning {
+  border-color: var(--accent, #E8283C);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    0 0 20px rgba(232, 40, 60, 0.35);
+}
+
+.emotion-mock__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: #1A1A1E;
+  border-bottom: 1px solid rgba(245, 242, 238, 0.08);
+}
+
+.emotion-mock__dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.emotion-mock__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: rgba(245, 242, 238, 0.25);
+}
+
+.emotion-mock__dot--close {
+  background-color: var(--accent, #E8283C);
+}
+
+.emotion-mock__title {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: rgba(245, 242, 238, 0.65);
+}
+
+.emotion-mock__status-chip {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-light, #F5F2EE);
+}
+
+.emotion-mock__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px;
+  background: radial-gradient(circle at 35% 45%, #18171B 0%, #121214 100%);
+}
+
+.emotion-mock__viewport {
+  position: relative;
+  height: 180px;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(245, 242, 238, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.emotion-mock__bracket {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(245, 242, 238, 0.55);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.emotion-mock__bracket--tl {
+  top: 5px;
+  left: 5px;
+  border-width: 1.5px 0 0 1.5px;
+}
+
+.emotion-mock__bracket--tr {
+  top: 5px;
+  right: 5px;
+  border-width: 1.5px 1.5px 0 0;
+}
+
+.emotion-mock__bracket--bl {
+  bottom: 5px;
+  left: 5px;
+  border-width: 0 0 1.5px 1.5px;
+}
+
+.emotion-mock__bracket--br {
+  bottom: 5px;
+  right: 5px;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+.emotion-mock__face-svg {
+  width: 82%;
+  height: 88%;
+  display: block;
+}
+
+.emotion-mock__grid-scan {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(245, 242, 238, 0.6), transparent);
+  animation: gridSweep 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+
+.emotion-mock__grid-scan--warn {
+  background: linear-gradient(90deg, transparent, var(--accent, #E8283C), transparent);
+}
+
+@keyframes gridSweep {
+  0% { top: 0; opacity: 0; }
+  50% { opacity: 0.8; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.emotion-mock__readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.emotion-mock__readout-header {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(245, 242, 238, 0.45);
+}
+
+.emotion-mock__bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.emotion-mock__bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.emotion-mock__bar-name {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(245, 242, 238, 0.7);
+  transition: color 0.3s;
+}
+
+.emotion-mock__bar-name--warn {
+  color: var(--accent, #E8283C);
+  font-weight: 700;
+}
+
+.emotion-mock__bar-track {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(245, 242, 238, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.emotion-mock__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background-color: rgba(245, 242, 238, 0.55);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s;
+}
+
+.emotion-mock__bar-fill--warn {
+  background-color: var(--accent, #E8283C);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.emotion-mock__toast-area {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.emotion-mock__alert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: rgba(232, 40, 60, 0.16);
+  border: 1px solid var(--accent, #E8283C);
+  color: #FFA5AE;
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: alertPulse 1.2s infinite alternate;
+}
+
+.emotion-mock__alert-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--accent, #E8283C);
+}
+
+@keyframes alertPulse {
+  0% { transform: scale(0.98); }
+  100% { transform: scale(1.02); }
+}
+
+.emotion-mock__uplift-box {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(245, 242, 238, 0.16);
+}
+
+.emotion-mock__uplift-tag {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent, #E8283C);
+  margin-bottom: 2px;
+}
+
+.emotion-mock__uplift-msg {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  color: var(--text-light, #F5F2EE);
+  line-height: 1.35;
+}
+
+.emotion-mock__idle-msg {
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  color: rgba(245, 242, 238, 0.4);
+  font-style: italic;
+}
+
+/* -------------------------------------------------------------------------
+   Reduced Motion Overrides
+   ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .diet-mock__scan-line,
+  .emotion-mock__grid-scan,
+  .emotion-mock__alert-chip {
+    animation: none !important;
+  }
+}
+
