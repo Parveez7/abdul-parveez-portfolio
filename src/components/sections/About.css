@@ -16,8 +16,8 @@
   max-width: 1760px;
   height: 100%;
   margin: 0 auto;
-  padding: calc(var(--nav-height) + 1.5vh) clamp(1.5rem, 3vw, 4rem) clamp(3.5rem, 6vh, 5.5rem)
-    clamp(4.25rem, 6.5vw, 8rem);
+  padding: max(80px, calc(var(--nav-height) + 1.25rem)) clamp(1.5rem, 3vw, 4rem)
+    max(80px, clamp(3.5rem, 6vh, 5.5rem)) clamp(4.25rem, 6.5vw, 8rem);
   display: grid;
   grid-template-columns: minmax(360px, 52%) 1fr;
   align-items: center;
@@ -25,8 +25,8 @@
 }
 
 /* -------------------------------------------------------------------------
-   Left Column: Eyebrow, Serif Italic Headline, and Three Paragraphs
-   Wider proportion (52% width, max-width 52ch) eliminating empty white gap
+   Left Column: Eyebrow and Unified Statement Paragraphs
+   Vertically centered in viewport with >= 80px clearance from top and bottom.
    ------------------------------------------------------------------------- */
 .about-section__left {
   grid-column: 1;
@@ -43,7 +43,7 @@
   display: inline-flex;
   align-items: center;
   gap: 22px;
-  margin-bottom: clamp(0.9rem, 2vh, 1.85rem);
+  margin-bottom: 40px; /* 40px eyebrow-to-text spacing per spec */
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
@@ -68,52 +68,51 @@
   background-color: rgba(18, 18, 18, 0.22);
 }
 
-/* Headline: Italic Serif, 4 lines, tight 0.95 leading, gracefully stretched */
-.about-section__headline {
-  font-family: var(--font-serif-italic);
+/* Unified Statements Block: Balanced editorial layout, 32px gap */
+.about-section__statements {
+  display: flex;
+  flex-direction: column;
+  gap: 32px; /* 32px gap between statements on 8px grid */
+  max-width: clamp(540px, 42vw, 620px); /* 28-34 ch per line, ~4 lines per statement */
+  will-change: transform, opacity;
+}
+
+.about-section__statement {
+  line-height: 1.22;
+  margin: 0;
+  text-wrap: pretty;
+  text-wrap: balance;
+  color: #121212;
+}
+
+/* Base word styling for scroll-linked sequential colour progression */
+.about-word {
+  display: inline;
+  vertical-align: baseline;
+  color: #CFCFCB;
+  transition: color 0.04s linear;
+}
+
+/* Emphasised phrases: Italic Serif token, regular weight, italic */
+.about-word--serif {
+  font-family: var(--font-serif-italic), var(--font-serif);
   font-style: italic;
   font-weight: 400;
-  font-size: clamp(2.6rem, min(6.0vw, 9.2svh), 6.5rem);
-  line-height: 0.96;
-  letter-spacing: -0.02em;
-  margin: 0 0 clamp(1.2rem, 2.5vh, 2.2rem) 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  will-change: transform, opacity;
+  font-size: clamp(26px, 3.2vw, 52px);
+  letter-spacing: -0.01em;
 }
 
-.about-section__headline-line {
-  display: block;
-  white-space: nowrap;
-}
-
-/* Three Short Paragraphs: Stretched to 52ch for an elegant, balanced editorial layout */
-.about-section__paragraphs {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(0.85rem, 1.8vh, 1.45rem);
-  max-width: 52ch;
-  will-change: transform, opacity;
-}
-
-.about-section__paragraph {
-  font-family: var(--font-sans);
-  font-weight: 400;
-  font-size: clamp(0.95rem, min(1.12vw, 1.9svh), 1.16rem);
-  line-height: 1.58;
-  letter-spacing: -0.005em;
-  margin: 0;
-}
-
-/* Word spans for scroll-linked sequential colour progression */
-.about-word {
-  color: #CFCFCB;
-  transition: color 0.05s linear;
+/* Connecting words: Grotesk UI font, upright (not italic), weight 350, optical scaling ~0.85x to match x-height */
+.about-word--grotesk {
+  font-family: var(--font-ui, var(--font-sans));
+  font-style: normal;
+  font-weight: 350;
+  font-size: calc(clamp(26px, 3.2vw, 52px) * 0.85);
+  letter-spacing: -0.012em;
 }
 
 /* -------------------------------------------------------------------------
-   Right Column: Visual Stage for the Particle Figure (Shifted Right)
+   Right Column: Reserved Stage for the Particle Figure
    ------------------------------------------------------------------------- */
 .about-section__right {
   grid-column: 2;
@@ -123,7 +122,7 @@
 }
 
 /* -------------------------------------------------------------------------
-   Bottom-Left Footer: "SCROLL TO EXPLORE" + thin horizontal rules
+   Bottom-Left Footer: "SCROLL TO EXPLORE" with thin horizontal rules
    ------------------------------------------------------------------------- */
 .about-section__footer {
   position: absolute;
@@ -139,20 +138,34 @@
 @media (max-width: 899px) {
   .about-section__container {
     grid-template-columns: 1fr;
-    padding: calc(var(--nav-height) + 0.5rem) clamp(1.5rem, 5vw, 3rem) 4.25rem;
+    padding: max(80px, calc(var(--nav-height) + 1rem)) clamp(1.5rem, 5vw, 3rem) max(80px, 3.75rem);
   }
 
   .about-section__left {
-    max-width: 580px;
+    max-width: 100%;
+    margin: 0 auto;
     text-shadow: 0 0 18px rgba(250, 250, 248, 0.95), 0 0 6px rgba(250, 250, 248, 0.9);
   }
 
-  .about-section__headline {
-    font-size: clamp(2.35rem, min(10.5vw, 7.8svh), 4.25rem);
+  .about-section__eyebrow {
+    margin-bottom: 24px;
   }
 
-  .about-section__paragraphs {
+  .about-section__statements {
     max-width: 100%;
+    gap: 24px;
+  }
+
+  .about-section__statement {
+    line-height: 1.25;
+  }
+
+  .about-word--serif {
+    font-size: clamp(22px, 5vw, 32px);
+  }
+
+  .about-word--grotesk {
+    font-size: calc(clamp(22px, 5vw, 32px) * 0.85);
   }
 
   .about-section__right {
@@ -166,7 +179,10 @@
 }
 
 @media (max-width: 420px) {
-  .about-section__headline {
-    font-size: clamp(2.1rem, 10.2vw, 3rem);
+  .about-word--serif {
+    font-size: 22px;
+  }
+  .about-word--grotesk {
+    font-size: calc(22px * 0.85);
   }
 }

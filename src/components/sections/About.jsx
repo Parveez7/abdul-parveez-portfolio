@@ -3,46 +3,23 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useSmoothScroll } from '../../context/SmoothScrollContext'
 import { useParticleStage } from '../canvas/ParticleStage'
+import { ABOUT_DATA } from '../../data/about'
 import ScrollCue from '../common/ScrollCue'
 import './About.css'
-
-// Headline lines broken per reference:
-// I'm an / AI-focused / developer and / data enthusiast
-const HEADLINE_LINES = [
-  [
-    { text: "I\u2019m", muted: false },
-    { text: 'an', muted: false },
-  ],
-  [{ text: 'AI-focused', muted: false }],
-  [
-    { text: 'developer', muted: false },
-    { text: 'and', muted: true }, // Lighter grey in reference
-  ],
-  [
-    { text: 'data', muted: false },
-    { text: 'enthusiast', muted: false },
-  ],
-]
-
-const HEADLINE_ARIA = "I'm an AI-focused developer and data enthusiast"
-
-const PARAGRAPHS = [
-  'Passionate about building intelligent applications and uncovering insights through data.',
-  'I enjoy working at the intersection of AI, software development, and analytics; turning complex problems into practical solutions.',
-  "From developing AI-powered products to exploring data and building for the web, I'm driven by curiosity, experimentation, and a desire to understand not just how things work, but how to make them work better.",
-]
 
 /**
  * Interpolates word colour:
  * 1) Unread: pale grey (#CFCFCB -> 207, 207, 203)
  * 2) Active reading cursor: turns vibrant RED (--accent #E8283C -> 232, 40, 60)
- * 3) Settled / read: dark ink (#121212 -> 18, 18, 18) or muted grey (#72706B -> 114, 112, 107).
+ * 3) Settled / read: full ink (#121212 -> 18, 18, 18) for emphasis phrases,
+ *    or slightly softer ink (#5B5B57 -> 91, 91, 87) for connecting words.
+ * Both final states strictly exceed WCAG AA contrast on the paper background.
  */
-function computeWordColor(fill, isMutedWord = false) {
+function computeWordColor(fill, isEmphasis = false) {
   if (fill <= 0.001) return '#CFCFCB'
-  if (fill >= 0.999) return isMutedWord ? '#72706B' : '#121212'
+  if (fill >= 0.999) return isEmphasis ? '#121212' : '#5B5B57'
 
-  // Stage 1: Unread Grey -> Vibrant Red (0.0 -> 0.45)
+  // Stage 1: Unread Grey -> Vibrant Red Cursor (0.0 -> 0.45)
   if (fill < 0.45) {
     const t = fill / 0.45
     const r = Math.round(207 + (232 - 207) * t)
@@ -56,11 +33,11 @@ function computeWordColor(fill, isMutedWord = false) {
     return '#E8283C'
   }
 
-  // Stage 2: Vibrant Red -> Settled Ink/Muted (0.55 -> 1.0)
+  // Stage 2: Vibrant Red -> Settled Ink / Softer Ink (0.55 -> 1.0)
   const t = (fill - 0.55) / 0.45
-  const endR = isMutedWord ? 114 : 18
-  const endG = isMutedWord ? 112 : 18
-  const endB = isMutedWord ? 107 : 18
+  const endR = isEmphasis ? 18 : 91
+  const endG = isEmphasis ? 18 : 91
+  const endB = isEmphasis ? 18 : 87
 
   const r = Math.round(232 + (endR - 232) * t)
   const g = Math.round(40 + (endG - 40) * t)
@@ -72,8 +49,7 @@ export default function About() {
   const sectionRef = useRef(null)
   const contentWrapRef = useRef(null)
   const eyebrowRef = useRef(null)
-  const headlineRef = useRef(null)
-  const paragraphsRef = useRef(null)
+  const statementsWrapRef = useRef(null)
   const footerCueRef = useRef(null)
 
   const wordSpansRef = useRef([])
@@ -87,10 +63,24 @@ export default function About() {
   } = useSmoothScroll()
   const { stage } = useParticleStage()
 
-  const splitParagraphs = useMemo(
-    () => PARAGRAPHS.map((p) => p.split(' ')),
-    []
-  )
+  // Format statements with global word indexing & emphasis markers
+  const formattedStatements = useMemo(() => {
+    let globalCounter = 0
+    return ABOUT_DATA.statements.map((statementStr) => {
+      const words = statementStr.split(' ').map((wordText) => {
+        const currIdx = globalCounter++
+        const isEmphasis = ABOUT_DATA.emphasisRanges.some(
+          ([start, end]) => currIdx >= start && currIdx <= end
+        )
+        return {
+          text: wordText,
+          globalIndex: currIdx,
+          isEmphasis,
+        }
+      })
+      return { words }
+    })
+  }, [])
 
   useEffect(() => {
     const aboutEl = sectionRef.current
@@ -100,36 +90,79 @@ export default function About() {
 
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    // Collect all word spans in DOM order (Headline first, then P1, P2, P3)
+    // Collect all word spans in DOM order
     const wordNodes = Array.from(aboutEl.querySelectorAll('.about-word'))
     wordSpansRef.current = wordNodes.map((node) => ({
       el: node,
-      isMuted: node.getAttribute('data-muted') === 'true',
+      isEmphasis: node.getAttribute('data-emphasis') === 'true',
     }))
     lastWordFillRef.current = new Float32Array(wordNodes.length).fill(-1)
 
-    const applyWordFillProgress = (textProg) => {
+    /**
+     * Equal Reading Time Per Pose:
+     * Pinned range is divided into 3 equal segments (130vh each, 390vh total).
+     * Segment 0: Beat 1 (words 0..10)  -> Pose 1 (working-laptop)
+     * Segment 1: Beat 2 (words 11..20) -> Pose 2 (thinking)
+     * Segment 2: Beat 3 (words 21..28) -> Pose 3 (analyzing-tablet)
+     *
+     * Within each segment:
+     * - 0-15%: Pose morphs in (skipped for beat 1 as pose 1 arrived during Hero transition)
+     * - 15-75%: Beat words fill from grey to ink at constant pace with soft leading edge
+     * - 75-100%: HOLD with text fully filled and pose settled
+     */
+    const applyWordFillProgress = (p) => {
       const words = wordSpansRef.current
       const totalWords = words.length
       if (totalWords === 0) return
 
-      const softEdgeWidth = 3.6
-      const cursor = textProg * (totalWords + softEdgeWidth)
+      const fills = new Float32Array(totalWords)
+
+      for (let bIdx = 0; bIdx < ABOUT_DATA.beats.length; bIdx++) {
+        const [startIdx, endIdx] = ABOUT_DATA.beats[bIdx].wordRange
+        const nWords = endIdx - startIdx + 1
+
+        const segStart = bIdx / 3.0
+        const segEnd = (bIdx + 1) / 3.0
+
+        let bProg = 0.0
+        if (p < segStart) {
+          bProg = 0.0
+        } else if (p >= segEnd) {
+          bProg = 1.0
+        } else {
+          const pLocal = (p - segStart) * 3.0
+          if (pLocal < 0.15) {
+            bProg = 0.0
+          } else if (pLocal > 0.75) {
+            bProg = 1.0
+          } else {
+            bProg = (pLocal - 0.15) / 0.60
+          }
+        }
+
+        const softEdgeWidth = 2.2
+        const cursor = bProg * (nWords + softEdgeWidth)
+
+        for (let j = 0; j < nWords; j++) {
+          const raw = (cursor - j) / softEdgeWidth
+          const val = raw <= 0 ? 0 : raw >= 1 ? 1 : raw
+          fills[startIdx + j] = val
+        }
+      }
 
       for (let i = 0; i < totalWords; i++) {
-        const raw = (cursor - i) / softEdgeWidth
-        const fill = raw <= 0 ? 0 : raw >= 1 ? 1 : raw
-        if (Math.abs(fill - lastWordFillRef.current[i]) > 0.015) {
+        const fill = fills[i]
+        if (Math.abs(fill - lastWordFillRef.current[i]) > 0.012) {
           lastWordFillRef.current[i] = fill
-          words[i].el.style.color = computeWordColor(fill, words[i].isMuted)
+          words[i].el.style.color = computeWordColor(fill, words[i].isEmphasis)
         }
       }
     }
 
     if (prefersReducedMotion) {
-      applyWordFillProgress(1)
+      applyWordFillProgress(1.0)
     } else {
-      applyWordFillProgress(0)
+      applyWordFillProgress(0.0)
     }
 
     const triggers = []
@@ -137,8 +170,7 @@ export default function About() {
     // =========================================================================
     // PART A: CONTINUOUS TRANSITION (Hero -> About)
     // Triggered on heroEl from 'top top' to 'bottom top' (~100vh of scroll).
-    // Using heroEl as the trigger decouples it completely from aboutEl's pin-spacer,
-    // eliminating trackpad scroll locking and hitching!
+    // Decoupled from aboutEl's pin-spacer to eliminate trackpad hitching.
     // =========================================================================
     const heroIdentity = heroEl.querySelector('.hero-section__identity')
     const heroRole = heroEl.querySelector('.hero-section__role')
@@ -146,8 +178,7 @@ export default function About() {
     const heroVignette = heroEl.querySelector('.hero-section__vignette')
     const aboutRevealTargets = [
       eyebrowRef.current,
-      headlineRef.current,
-      paragraphsRef.current,
+      statementsWrapRef.current,
       footerCueRef.current,
     ].filter(Boolean)
 
@@ -188,7 +219,7 @@ export default function About() {
           setActiveSection('hero')
         }
 
-        // 1) 0-25%: Hero name and tagline fade and drift upward; scroll cue disappears
+        // 1) 0-25%: Hero name and tagline fade and drift upward; scroll cue fades out
         const heroOutT = Math.min(1, p / 0.25)
         if (heroIdentity && heroRole) {
           const heroAlpha = 1 - heroOutT
@@ -202,7 +233,7 @@ export default function About() {
           heroCue.style.opacity = String(Math.max(0, 1 - p / 0.18))
         }
 
-        // 2) 15-70%: Background & Navbar/Index interpolate from --bg-dark to --bg-paper
+        // 2) 15-70%: Background & Navbar/Index interpolate from dark to paper
         const themeT = Math.max(0, Math.min(1, (p - 0.15) / 0.55))
         stage.setTheme(themeT)
         if (heroVignette) {
@@ -231,12 +262,13 @@ export default function About() {
     triggers.push(transitionSt)
 
     // =========================================================================
-    // PART C: PINNED, SCROLL-LINKED BEHAVIOUR (~380vh of scroll)
+    // PART B: PINNED, SCROLL-LINKED BEHAVIOUR (~390vh of scroll = 3x 130vh)
     // =========================================================================
     const pinnedSt = ScrollTrigger.create({
+      id: 'about',
       trigger: aboutEl,
       start: 'top top',
-      end: '+=380%',
+      end: '+=390%',
       pin: true,
       pinSpacing: true,
       scrub: 0.5,
@@ -264,17 +296,17 @@ export default function About() {
         // 1) Section Index 01 segment fills in proportion to scroll progress
         updateProgress('about', p)
 
-        // 2) Sequential Text Colour Progression (0% -> 88% of pinned scroll)
+        // 2) Sequential Text Colour Progression per beat with hold periods
         if (!prefersReducedMotion) {
-          const textProg = Math.max(0, Math.min(1, p / 0.88))
-          applyWordFillProgress(textProg)
+          applyWordFillProgress(p)
         }
 
-        // 3) Pose Morphs tied to progress
+        // 3) Equal Reading Time Pose Transitions:
+        // Morphs start at exactly 1/3 and 2/3 of pinned range
         let desiredPose = 'pose1'
-        if (p >= 0.70) {
+        if (p >= 0.6667) {
           desiredPose = 'pose3'
-        } else if (p >= 0.35) {
+        } else if (p >= 0.3333) {
           desiredPose = 'pose2'
         }
 
@@ -292,7 +324,7 @@ export default function About() {
     triggers.push(pinnedSt)
 
     // =========================================================================
-    // PART D: EXIT (About -> Dark Filler Section)
+    // PART C: EXIT (About -> Dark Filler Section)
     // =========================================================================
     if (fillerEl) {
       const exitSt = ScrollTrigger.create({
@@ -323,7 +355,6 @@ export default function About() {
     setActiveSection,
     setActiveSectionIndex,
     updateProgress,
-    splitParagraphs,
   ])
 
   return (
@@ -335,56 +366,36 @@ export default function About() {
       aria-label="01 About Me"
     >
       <div ref={contentWrapRef} className="about-section__container">
-        {/* Left Column (~52% width, max-width 52ch for balanced editorial layout) */}
+        {/* Left Column (~52% width, max-width ~580px for balanced editorial layout) */}
         <div className="about-section__left">
           {/* Eyebrow: "01   ABOUT ME" + thin rule */}
           <div ref={eyebrowRef} className="about-section__eyebrow">
-            <span className="about-section__eyebrow-num">01</span>
-            <span className="about-section__eyebrow-label">ABOUT ME</span>
+            <span className="about-section__eyebrow-num">{ABOUT_DATA.eyebrow.number}</span>
+            <span className="about-section__eyebrow-label">{ABOUT_DATA.eyebrow.label}</span>
             <span className="about-section__eyebrow-rule" aria-hidden="true" />
           </div>
 
-          {/* Headline in Italic Serif */}
-          <h2
-            ref={headlineRef}
-            className="about-section__headline"
-            aria-label={HEADLINE_ARIA}
-          >
-            {HEADLINE_LINES.map((lineWords, lineIdx) => (
-              <span key={lineIdx} className="about-section__headline-line" aria-hidden="true">
-                {lineWords.map((wObj, wIdx) => (
-                  <React.Fragment key={wIdx}>
-                    <span
-                      className="about-word about-word--headline"
-                      data-muted={wObj.muted ? 'true' : 'false'}
-                    >
-                      {wObj.text}
-                    </span>
-                    {wIdx < lineWords.length - 1 && ' '}
-                  </React.Fragment>
-                ))}
-              </span>
-            ))}
-          </h2>
-
-          {/* Three Short Paragraphs: Stretched to 52ch, filling the empty gap */}
-          <div ref={paragraphsRef} className="about-section__paragraphs">
-            {PARAGRAPHS.map((fullText, pIdx) => (
+          {/* Unified Statement Paragraphs in Single Italic Serif Size */}
+          <div ref={statementsWrapRef} className="about-section__statements">
+            {formattedStatements.map((stmt, sIdx) => (
               <p
-                key={pIdx}
-                className="about-section__paragraph"
-                aria-label={fullText}
+                key={sIdx}
+                className="about-section__statement"
+                aria-label={ABOUT_DATA.statements[sIdx]}
               >
-                {splitParagraphs[pIdx].map((word, wIdx, arr) => (
-                  <React.Fragment key={wIdx}>
+                {stmt.words.map((wordObj) => (
+                  <React.Fragment key={wordObj.globalIndex}>
                     <span
-                      className="about-word about-word--body"
-                      data-muted="false"
+                      className={`about-word ${
+                        wordObj.isEmphasis ? 'about-word--serif' : 'about-word--grotesk'
+                      }`}
+                      data-index={wordObj.globalIndex}
+                      data-emphasis={wordObj.isEmphasis ? 'true' : 'false'}
                       aria-hidden="true"
                     >
-                      {word}
+                      {wordObj.text}
                     </span>
-                    {wIdx < arr.length - 1 && ' '}
+                    {' '}
                   </React.Fragment>
                 ))}
               </p>
@@ -392,7 +403,7 @@ export default function About() {
           </div>
         </div>
 
-        {/* Right Half: Reserved visual stage for the particle figure (Shifted Right) */}
+        {/* Right Half: Reserved visual stage for the particle figure */}
         <div className="about-section__right" aria-hidden="true" />
 
         {/* Bottom-Left: "SCROLL TO EXPLORE" with thin horizontal rules */}

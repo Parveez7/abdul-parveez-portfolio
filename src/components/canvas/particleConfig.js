@@ -38,11 +38,11 @@ export const PARTICLE_CONFIG = {
   // Fallback floor for quality scaling
   minFallback: 6000,
 
-  // Performance safeguard: scale down if frame delta > 20ms sustained for 2000ms
+  // Performance safeguard: scale down if frame delta > 28ms sustained for 3000ms
   perf: {
-    maxFrameTimeMs: 20,
-    sustainedThresholdMs: 2000,
-    scaleDownFactor: 0.75,
+    maxFrameTimeMs: 28,
+    sustainedThresholdMs: 3000,
+    scaleDownFactor: 0.82,
     maxDpr: 2,
   },
 

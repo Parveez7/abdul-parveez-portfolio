@@ -788,30 +788,62 @@ export class ParticleEngine {
       const dy = destY - y[i]
       const phase = s + timeFreq
 
-      let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
-      let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
+      const isHeroMode = this.currentScene === 'hero' && this.theme <= 0.2
 
-      if (hasPointer && effectiveTargetAlpha > 0.05) {
-        const cdx = x[i] - px
-        if (cdx > -cursorRadius && cdx < cursorRadius) {
-          const cdy = y[i] - py
-          if (cdy > -cursorRadius && cdy < cursorRadius) {
-            const distSq = cdx * cdx + cdy * cdy
-            if (distSq < cursorRadiusSq && distSq > 0.01) {
-              const dist = Math.sqrt(distSq)
-              const falloff = 1 - dist / cursorRadius
-              const force = falloff * falloff * repelStrength
-              nvx += (cdx / dist) * force
-              nvy += (cdy / dist) * force
+      if (isHeroMode) {
+        // Hero mode: Critically damped exponential ease-out (no spring overshoot / wobble)
+        const followSpeed = 0.14
+        let moveX = dx * followSpeed
+        let moveY = dy * followSpeed
+
+        if (hasPointer && effectiveTargetAlpha > 0.05) {
+          const cdx = x[i] - px
+          if (cdx > -cursorRadius && cdx < cursorRadius) {
+            const cdy = y[i] - py
+            if (cdy > -cursorRadius && cdy < cursorRadius) {
+              const distSq = cdx * cdx + cdy * cdy
+              if (distSq < cursorRadiusSq && distSq > 0.01) {
+                const dist = Math.sqrt(distSq)
+                const falloff = 1 - dist / cursorRadius
+                const force = falloff * falloff * repelStrength * 1.35
+                moveX += (cdx / dist) * force
+                moveY += (cdy / dist) * force
+              }
             }
           }
         }
-      }
 
-      vx[i] = nvx
-      vy[i] = nvy
-      x[i] += nvx
-      y[i] += nvy
+        x[i] += moveX
+        y[i] += moveY
+        vx[i] = 0
+        vy[i] = 0
+      } else {
+        // About poses: Preserved spring & shimmer cloud dissolve physics
+        let nvx = (vx[i] + dx * stiffness + Math.cos(phase) * shimmerAmp) * damping
+        let nvy = (vy[i] + dy * stiffness + Math.sin(phase) * shimmerAmp) * damping
+
+        if (hasPointer && effectiveTargetAlpha > 0.05) {
+          const cdx = x[i] - px
+          if (cdx > -cursorRadius && cdx < cursorRadius) {
+            const cdy = y[i] - py
+            if (cdy > -cursorRadius && cdy < cursorRadius) {
+              const distSq = cdx * cdx + cdy * cdy
+              if (distSq < cursorRadiusSq && distSq > 0.01) {
+                const dist = Math.sqrt(distSq)
+                const falloff = 1 - dist / cursorRadius
+                const force = falloff * falloff * repelStrength
+                nvx += (cdx / dist) * force
+                nvy += (cdy / dist) * force
+              }
+            }
+          }
+        }
+
+        vx[i] = nvx
+        vy[i] = nvy
+        x[i] += nvx
+        y[i] += nvy
+      }
 
       alpha[i] += (effectiveTargetAlpha - alpha[i]) * 0.085
     }

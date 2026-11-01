@@ -330,6 +330,13 @@ export default function Arsenal() {
     const sectionEl = sectionRef.current
     if (!sectionEl) return
 
+    // 0. Scroll Anchor for navigation
+    const anchorSt = ScrollTrigger.create({
+      id: 'skills',
+      trigger: sectionEl,
+      start: 'top top',
+    })
+
     // 1. Section navigation and active index tracking
     const stSection = ScrollTrigger.create({
       trigger: sectionEl,
@@ -338,13 +345,13 @@ export default function Arsenal() {
       onEnter: () => {
         setIsOffscreen(false)
         setActiveSection('skills')
-        setActiveSectionIndex('05')
+        setActiveSectionIndex('03')
         setActiveTheme('dark')
       },
       onEnterBack: () => {
         setIsOffscreen(false)
         setActiveSection('skills')
-        setActiveSectionIndex('05')
+        setActiveSectionIndex('03')
         setActiveTheme('dark')
       },
       onLeave: () => {
@@ -379,6 +386,7 @@ export default function Arsenal() {
     })
 
     return () => {
+      anchorSt.kill()
       stSection.kill()
       stHeader.kill()
       stGrid.kill()
@@ -401,7 +409,7 @@ export default function Arsenal() {
       id="skills"
       data-theme="dark"
       className={`arsenal-section ${isOffscreen ? 'arsenal-section--offscreen' : ''}`}
-      aria-label="05 Technical Arsenal"
+      aria-label="03 Technical Arsenal"
     >
       {/* Anchor alias so #arsenal or #technical-arsenal links resolve here */}
       <span id="arsenal" className="arsenal-section__anchor" aria-hidden="true" />
@@ -427,7 +435,7 @@ export default function Arsenal() {
             <span className="arsenal-header__rule" aria-hidden="true" />
             <span className="arsenal-header__eyebrow">
               <DecodedText
-                text="05   TECHNICAL ARSENAL"
+                text="03   TECHNICAL ARSENAL"
                 active={headerTriggered}
                 duration={450}
               />

@@ -46,14 +46,14 @@ function PortfolioRoot() {
         {/* 02: Pinned Philosophy / Filler Section ("Jack of all trades...") */}
         <Filler />
 
-        {/* 03: Featured Work (Apple-style frosted glass cards: Projects, Experience, Exchange) */}
+        {/* 03: Technical Arsenal (Precision Blueprint Spec Sheet & Logo Marquee) */}
+        <Arsenal />
+
+        {/* 04: Featured Work (Apple-style frosted glass cards: Projects, Experience, Exchange) */}
         <Featured />
 
-        {/* 04: The Journey (3D Camera-on-a-Rail Matte Editorial Timeline) */}
+        {/* 05: The Journey (3D Camera-on-a-Rail Matte Editorial Timeline) */}
         <Journey />
-
-        {/* 05: Technical Arsenal (Precision Blueprint Spec Sheet & Logo Marquee) */}
-        <Arsenal />
 
         {/* 06: Let's Connect (3D Orbiting Social Icons & Interactive Editorial Section) */}
         <Connect />

@@ -321,6 +321,14 @@ export default function Featured() {
 
     const triggers = []
 
+    // 0. Scroll Anchor for navigation
+    const anchorSt = ScrollTrigger.create({
+      id: 'projects',
+      trigger: sectionEl,
+      start: 'top top',
+    })
+    triggers.push(anchorSt)
+
     // -------------------------------------------------------------------------
     // 1. Section Activation & Dark Navbar/Index (Index 03: Projects)
     // -------------------------------------------------------------------------
@@ -330,13 +338,13 @@ export default function Featured() {
       end: 'bottom 45%',
       onEnter: () => {
         setActiveSection('projects')
-        setActiveSectionIndex('03')
+        setActiveSectionIndex('04')
         setActiveTheme('dark')
         setIsPaused(false)
       },
       onEnterBack: () => {
         setActiveSection('projects')
-        setActiveSectionIndex('03')
+        setActiveSectionIndex('04')
         setActiveTheme('dark')
         setIsPaused(false)
       },
@@ -428,7 +436,7 @@ export default function Featured() {
       id="projects"
       data-theme="dark"
       className={`featured-section ${isPaused ? 'featured-section--paused' : ''}`}
-      aria-label="03 Featured Work"
+      aria-label="04 Featured Work"
     >
       {/* 1. Ambient Background Layer: Drifting Blurred Color Orbs & Grain */}
       <div className="featured-section__ambient" aria-hidden="true">
@@ -442,7 +450,7 @@ export default function Featured() {
         {/* 2. Header: Grotesk + Italic Serif Pairing */}
         <header ref={headerRef} className="featured-section__header">
           <div className="featured-section__eyebrow">
-            <span className="featured-section__eyebrow-num">03</span>
+            <span className="featured-section__eyebrow-num">04</span>
             <span className="featured-section__eyebrow-label">FEATURED WORK</span>
             <span className="featured-section__eyebrow-rule" aria-hidden="true" />
           </div>

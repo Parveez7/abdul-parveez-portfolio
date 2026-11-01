@@ -66,6 +66,10 @@
   white-space: nowrap;
 }
 
+.hero-section__name-accent {
+  color: var(--accent, #E8283C);
+}
+
 /* -------------------------------------------------------------------------
    Center Zone (keeps text clear of the particle portrait across all widths)
    ------------------------------------------------------------------------- */

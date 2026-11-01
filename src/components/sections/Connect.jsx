@@ -30,6 +30,18 @@ export default function Connect() {
   const { scrollTo } = useSmoothScroll()
   useSectionScrollTrigger(sectionRef, { id: 'contact', theme: 'dark', index: '06' })
 
+  // Dedicated anchor for navigation
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el) return
+    const st = gsap.ScrollTrigger ? gsap.ScrollTrigger.create({
+      id: 'contact',
+      trigger: el,
+      start: 'top top',
+    }) : null
+    return () => st?.kill()
+  }, [])
+
   // Interactive tooltip state
   const [activeTooltip, setActiveTooltip] = useState(null)
   const [isColorForced, setIsColorForced] = useState(false)

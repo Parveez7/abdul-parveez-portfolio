@@ -12,12 +12,13 @@ export const SITE = {
   email: 'contact@abdulparvez.in',
   calendarUrl: 'https://cal.com',
 
-  // Top navigation links (matches design: Home, Work, Journey, Arsenal + Connect CTA)
+  // Top navigation links (matches design: Home, About, Skills, Work, Journey + Connect CTA)
   nav: [
     { id: 'hero', label: 'Home', href: '#hero' },
+    { id: 'about', label: 'About', href: '#about' },
+    { id: 'skills', label: 'Skills', href: '#skills' },
     { id: 'projects', label: 'Work', href: '#projects' },
     { id: 'experience', label: 'Journey', href: '#experience' },
-    { id: 'skills', label: 'Arsenal', href: '#skills' },
   ],
 
   // Header Call To Action button
@@ -31,9 +32,9 @@ export const SITE = {
   sectionIndex: [
     { index: '01', id: 'about', label: 'About', targetTheme: 'light' },
     { index: '02', id: 'filler', label: 'Philosophy', targetTheme: 'dark' },
-    { index: '03', id: 'projects', label: 'Featured Work', targetTheme: 'dark' },
-    { index: '04', id: 'experience', label: 'Journey', targetTheme: 'dark' },
-    { index: '05', id: 'skills', label: 'Technical Arsenal', targetTheme: 'dark' },
+    { index: '03', id: 'skills', label: 'Technical Arsenal', targetTheme: 'dark' },
+    { index: '04', id: 'projects', label: 'Featured Work', targetTheme: 'dark' },
+    { index: '05', id: 'experience', label: 'Journey', targetTheme: 'dark' },
     { index: '06', id: 'contact', label: 'Connect', targetTheme: 'dark' },
   ],
 

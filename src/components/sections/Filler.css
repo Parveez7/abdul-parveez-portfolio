@@ -68,7 +68,7 @@
   font-family: var(--font-sans);
   font-weight: 900;
   /* Fluid font size scaled up to boldly fill the screen horizontally */
-  font-size: clamp(1.65rem, min(7.5vw, 13.5svh), 8.25rem);
+  font-size: clamp(1.5rem, min(6.8vw, 12.5svh), 7.8rem);
   line-height: 0.90;
   text-transform: uppercase;
   letter-spacing: -0.035em;

@@ -415,7 +415,7 @@ export default function Journey() {
   const handleSkipTimeline = useCallback(() => {
     setIsChromeHidden(false)
     updateProgress('experience', 1)
-    scrollTo('#skills', {
+    scrollTo('#contact', {
       duration: 1.6,
       easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
     })
@@ -449,13 +449,13 @@ export default function Journey() {
       end: 'bottom 40%',
       onEnter: () => {
         setActiveSection('experience')
-        setActiveSectionIndex('04')
+        setActiveSectionIndex('05')
         setActiveTheme('dark')
         particleStage.setVisibility(0)
       },
       onEnterBack: () => {
         setActiveSection('experience')
-        setActiveSectionIndex('04')
+        setActiveSectionIndex('05')
         setActiveTheme('dark')
         particleStage.setVisibility(0)
       },
@@ -511,6 +511,7 @@ export default function Journey() {
 
     // Pin section with ScrollTrigger
     const st = ScrollTrigger.create({
+      id: 'experience',
       trigger: sectionEl,
       start: 'top top',
       end: `+=${totalPinVh}%`,
@@ -520,7 +521,7 @@ export default function Journey() {
       onEnter: () => {
         stateRef.current.isActive = true
         setActiveSection('experience')
-        setActiveSectionIndex('04')
+        setActiveSectionIndex('05')
         setActiveTheme('dark')
         setIsChromeHidden(true)
         particleStage.setVisibility(0)
@@ -528,7 +529,7 @@ export default function Journey() {
       onEnterBack: () => {
         stateRef.current.isActive = true
         setActiveSection('experience')
-        setActiveSectionIndex('04')
+        setActiveSectionIndex('05')
         setActiveTheme('dark')
         setIsChromeHidden(true)
         particleStage.setVisibility(0)
@@ -537,15 +538,15 @@ export default function Journey() {
         stateRef.current.isActive = false
         setIsChromeHidden(false)
         updateProgress('experience', 1)
-        setActiveSection('skills')
-        setActiveSectionIndex('05')
+        setActiveSection('contact')
+        setActiveSectionIndex('06')
       },
       onLeaveBack: () => {
         stateRef.current.isActive = false
         setIsChromeHidden(false)
         updateProgress('experience', 0)
         setActiveSection('projects')
-        setActiveSectionIndex('03')
+        setActiveSectionIndex('04')
       },
       onUpdate: (self) => {
         const p = self.progress
@@ -1059,7 +1060,7 @@ export default function Journey() {
       className={`journey-section ${
         prefersReducedMotion ? 'journey-section--reduced-motion' : ''
       }`}
-      aria-label="04 The Journey Timeline"
+      aria-label="05 The Journey Timeline"
     >
       {/* Anchor alias so #achievements links also resolve here */}
       <span id="achievements" className="journey-section__anchor" aria-hidden="true" />
@@ -1101,7 +1102,7 @@ export default function Journey() {
         {/* Top-Left Masthead ("04 | JOURNEY" stays visible; large "THE Journey" collapses after first card) */}
         <header className="journey-section__header">
           <div className="journey-section__eyebrow">
-            <span className="journey-section__eyebrow-num">04</span>
+            <span className="journey-section__eyebrow-num">05</span>
             <span className="journey-section__eyebrow-sep" aria-hidden="true" />
             <span>JOURNEY</span>
           </div>

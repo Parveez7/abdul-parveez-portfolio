@@ -46,7 +46,58 @@ export function SmoothScrollProvider({ children }) {
   }, [])
 
   const scrollTo = useCallback((target, customOptions = {}) => {
-    if (!target) return
+    if (!target && target !== 0) return
+
+    // Target duration and easing: about 1.4s, expo ease per specification
+    const defaultOptions = {
+      duration: 1.4,
+      easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+      ...customOptions,
+    }
+
+    // Special case for hero / top of page
+    if (target === '#hero' || target === 'hero' || target === 0) {
+      if (isReducedMotion.current || !lenisRef.current) {
+        window.scrollTo({ top: 0, behavior: 'auto' })
+      } else {
+        lenisRef.current.scrollTo(0, defaultOptions)
+      }
+      return
+    }
+
+    // Resolve target to an ID if string or DOM element
+    const targetId = typeof target === 'string' ? target.replace(/^#/, '') : target?.id
+
+    let targetScrollPos = null
+
+    if (targetId) {
+      // 1. Try to find a ScrollTrigger by ID (exact mathematical pin-aware start)
+      const stById = ScrollTrigger.getById(targetId)
+      if (stById && typeof stById.start === 'number') {
+        targetScrollPos = stById.start
+      } else {
+        // 2. Query element and look for associated ScrollTrigger (prefer pinned trigger)
+        const el = document.getElementById(targetId)
+        if (el) {
+          const triggers = ScrollTrigger.getAll()
+          const matchedSt =
+            triggers.find((st) => (st.pin === el || st.trigger === el) && st.pin) ||
+            triggers.find((st) => st.trigger === el || st.pin === el)
+          if (matchedSt && typeof matchedSt.start === 'number') {
+            targetScrollPos = matchedSt.start
+          }
+        }
+      }
+    }
+
+    if (targetScrollPos !== null) {
+      if (isReducedMotion.current || !lenisRef.current) {
+        window.scrollTo({ top: targetScrollPos, behavior: 'auto' })
+      } else {
+        lenisRef.current.scrollTo(targetScrollPos, defaultOptions)
+      }
+      return
+    }
 
     if (isReducedMotion.current || !lenisRef.current) {
       const el = typeof target === 'string' ? document.querySelector(target) : target
@@ -56,12 +107,11 @@ export function SmoothScrollProvider({ children }) {
       return
     }
 
-    lenisRef.current.scrollTo(target, {
-      duration: 1.2,
-      easing: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
-      ...customOptions,
-    })
+    lenisRef.current.scrollTo(target, defaultOptions)
   }, [])
+
+  const scrollToRef = useRef(scrollTo)
+  scrollToRef.current = scrollTo
 
   const stopScroll = useCallback(() => {
     lenisRef.current?.stop()
@@ -120,12 +170,24 @@ export function SmoothScrollProvider({ children }) {
       window.addEventListener('scroll', handleNativeScroll, { passive: true })
     }
 
+    const checkInitialHash = () => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        setTimeout(() => {
+          scrollToRef.current?.(window.location.hash)
+        }, 120)
+      }
+    }
+
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => {
         ScrollTrigger.refresh()
+        checkInitialHash()
       })
     } else {
-      setTimeout(() => ScrollTrigger.refresh(), 300)
+      setTimeout(() => {
+        ScrollTrigger.refresh()
+        checkInitialHash()
+      }, 300)
     }
 
     let resizeTimer = null

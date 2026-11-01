@@ -10,17 +10,16 @@ export const FILLER_DATA = {
     'MASTER OF',
   ],
 
-  // 5 sequential phrases that swap inside the red glowing slot
+  // 5 sequential phrases that swap inside the red glowing slot in exact order
   phrases: [
-    'ARTIFICIAL INTELLIGENCE',
-    'DATA ANALYSIS',
     'WEB DEVELOPMENT',
+    'DATA ANALYSIS',
+    'ARTIFICIAL INTELLIGENCE',
     'OVERTHINKING IDEAS',
     'MAKING IT WORK',
   ],
 
   // Screen-reader full transcript for accessibility
   screenReaderSummary:
-    'Jack of all trades, master of: Artificial Intelligence, Data Analysis, Web Development, Overthinking Ideas, Making It Work.',
+    'Jack of all trades, master of: Web Development, Data Analysis, Artificial Intelligence, Overthinking Ideas, Making It Work.',
 }
-

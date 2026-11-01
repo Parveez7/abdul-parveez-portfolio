@@ -313,7 +313,12 @@ export default function Filler() {
 
       {/* 2. Accessible Hidden Screen-Reader Transcript */}
       <div className="sr-only">
-        {FILLER_DATA.screenReaderSummary}
+        <p>{FILLER_DATA.screenReaderSummary}</p>
+        <ol>
+          {FILLER_DATA.phrases.map((phrase, idx) => (
+            <li key={idx}>{phrase}</li>
+          ))}
+        </ol>
       </div>
 
       {/* 3. Main Stage Content */}

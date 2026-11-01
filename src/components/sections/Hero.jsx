@@ -128,7 +128,12 @@ export default function Hero({ isLoaded = false }) {
         {/* Left (Desktop) / Top (Mobile): Thin rule + Name */}
         <div ref={leftBlockRef} className="hero-section__identity">
           <span className="hero-section__rule hero-section__rule--left" aria-hidden="true" />
-          <h1 className="hero-section__name">{SITE.name}</h1>
+          <h1 className="hero-section__name" aria-label={SITE.name}>
+            <span aria-hidden="true">
+              {SITE.name.slice(0, -1)}
+              <span className="hero-section__name-accent">{SITE.name.slice(-1)}</span>
+            </span>
+          </h1>
         </div>
 
         {/* Center spacer reserving clean breathing room for the particle portrait */}

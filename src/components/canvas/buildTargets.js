@@ -395,6 +395,24 @@ export function buildTargets(image, options = {}) {
     }
   }
 
+  // Deterministic Fisher-Yates shuffle across active particles so spatial position is
+  // completely decoupled from array index. If quality scaling lowers activeCount,
+  // density drops uniformly across the entire portrait rather than slicing off the bottom!
+  for (let i = effectiveActiveCount - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    const tmpX = outX[i]
+    outX[i] = outX[j]
+    outX[j] = tmpX
+
+    const tmpY = outY[i]
+    outY[i] = outY[j]
+    outY[j] = tmpY
+
+    const tmpB = outBrightness[i]
+    outBrightness[i] = outBrightness[j]
+    outBrightness[j] = tmpB
+  }
+
   // Park any particles beyond effectiveActiveCount invisible (alpha 0)
   for (let i = effectiveActiveCount; i < count; i++) {
     outX[i] = rect.x + (rng() - 0.5) * rect.width * 0.8
